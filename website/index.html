@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mantis Seadiver: a submarine through an ocean that dreams itself</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap" rel="stylesheet">
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+  :root {
+    --sunlit: #1d8a8a;
+    --twilight: #0b3456;
+    --midnight: #050b16;
+    --abyss: #010307;
+    --kelp: #d9ad4f;
+    --glow: #6ff0dc;
+    --coral: #f2876b;
+    --ink: #e2f1ee;
+    --ink-dim: #9bbfba;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0;
+    color: var(--ink);
+    font-family: "Literata", Georgia, serif;
+    font-size: 1.06rem;
+    line-height: 1.68;
+    /* the page is the dive: it gets darker the further down you read */
+    background: linear-gradient(180deg, #7fd3cf 0, var(--sunlit) 520px, #12506a 1300px, var(--twilight) 2100px, var(--midnight) 3000px, var(--abyss) 100%);
+    min-height: 100vh;
+  }
+  .gauge {
+    position: absolute; left: 0; top: 0; width: 64px; height: 100%;
+    border-right: 1px solid rgba(226, 241, 238, 0.18);
+    font-family: "Bricolage Grotesque", sans-serif; font-size: 0.72rem; color: var(--ink-dim);
+    pointer-events: none;
+  }
+  .gauge span { position: absolute; right: 10px; }
+  .gauge span::after { content: ""; position: absolute; right: -10px; top: 0.6em; width: 7px; height: 1px; background: var(--ink-dim); }
+  main { position: relative; max-width: 980px; margin: 0 auto; padding: 0 28px 0 92px; }
+  .hero { min-height: 92vh; display: grid; align-content: center; padding: 64px 0 40px; }
+  h1 {
+    font-family: "Bricolage Grotesque", sans-serif; font-weight: 800;
+    font-size: clamp(3rem, 9vw, 7.2rem); line-height: 0.88; letter-spacing: -0.035em;
+    margin: 0; color: #f6fffd;
+    text-shadow: 0 2px 0 rgba(4, 40, 48, 0.25);
+  }
+  h1 small { display: block; font-size: 0.34em; letter-spacing: -0.01em; font-weight: 500; color: #063c42; margin-top: 0.9em; max-width: 22ch; line-height: 1.15; }
+  .hero-shot { margin-top: 44px; width: min(100%, 640px); image-rendering: pixelated; border-radius: 4px; box-shadow: 0 30px 60px -20px rgba(2, 40, 50, 0.6); }
+  .install { margin-top: 30px; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; color: #063c42; }
+  .install p { margin: 0; font-size: 0.95rem; max-width: 46ch; }
+  esp-web-install-button button, .btn {
+    font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 1.05rem;
+    background: #062a33; color: var(--glow); border: 0; border-radius: 999px; padding: 14px 26px; cursor: pointer;
+  }
+  esp-web-install-button button:focus-visible, .btn:focus-visible, a:focus-visible { outline: 3px solid var(--kelp); outline-offset: 3px; }
+  section.zone { padding: 90px 0 30px; }
+  h2 { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: clamp(1.9rem, 4.5vw, 3rem); letter-spacing: -0.02em; margin: 0 0 6px; line-height: 1; }
+  .zone .lede { color: var(--ink-dim); margin: 0 0 30px; max-width: 60ch; }
+  .shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
+  figure { margin: 0; }
+  figure img { width: 100%; display: block; image-rendering: pixelated; border-radius: 3px; }
+  figcaption { font-size: 0.86rem; color: var(--ink-dim); margin-top: 6px; }
+  figcaption b { color: var(--ink); font-weight: 600; }
+  .prose { max-width: 64ch; }
+  .controls { display: grid; grid-template-columns: max-content 1fr; gap: 10px 26px; margin: 26px 0; max-width: 680px; }
+  .controls dt { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; color: var(--kelp); }
+  .controls dd { margin: 0; }
+  .deep h2 { color: var(--glow); }
+  footer { padding: 120px 0 60px; color: #4d6a6a; font-size: 0.85rem; }
+  @media (max-width: 640px) { main { padding: 0 18px 0 62px; } .gauge { width: 46px; } .controls { grid-template-columns: 1fr; gap: 2px; } .controls dd { margin-bottom: 12px; } }
+</style>
+</head>
+<body>
+<div class="gauge" aria-hidden="true">
+  <span style="top:40px">0 m</span><span style="top:900px">20 m</span><span style="top:1700px">60 m</span>
+  <span style="top:2500px">120 m</span><span style="top:3300px">200 m</span><span style="top:4100px">320 m</span>
+</div>
+<main>
+  <header class="hero">
+    <h1>Mantis Seadiver<small>A submarine through an ocean that dreams itself, on an M5Stack Core2.</small></h1>
+    <img class="hero-shot" src="assets/02_kelp_cathedral.png" alt="Inside the kelp cathedral: golden kelp blades sway in green water, light shafts falling from the surface.">
+    <div class="install">
+      <esp-web-install-button manifest="firmware/manifest.json"></esp-web-install-button>
+      <p>Plug in your Core2 and install from Chrome or Edge on a computer. Nothing to download first.</p>
+    </div>
+  </header>
+
+  <section class="zone">
+    <h2>The sunlit zone</h2>
+    <p class="lede">Reefs, kelp and seagrass under a rippling ceiling of light. The sea is only dreamt ahead of you; behind you it's forgotten, and nothing is the same twice.</p>
+    <div class="shots">
+      <figure><img src="assets/01_coral_gardens.png" alt="Coral gardens: white sand, coral heads, reef fish and a turtle"><figcaption><b>Coral Gardens.</b> Snapping shrimp crackle in the sand.</figcaption></figure>
+      <figure><img src="assets/03_seagrass.png" alt="A manta ray glides over a seagrass meadow"><figcaption><b>Seagrass Shallows.</b> Mantas and turtles graze; a shark patrols the edge.</figcaption></figure>
+      <figure><img src="assets/10_sunken_city.png" alt="Ruined columns of a drowned city"><figcaption><b>The Sunken City.</b> Hold east, and the low sun breaks into colour over the steps.</figcaption></figure>
+      <figure><img src="assets/16_under_the_ice.png" alt="A narwhal swims beneath a blue ice shelf"><figcaption><b>Under the Ice.</b> Hold north. Narwhals, singing ice, aurora through the cracks.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="zone">
+    <h2>Flying it</h2>
+    <div class="prose">
+      <p>The controls come from SpaceMantis. Hold the Core2 comfortably; that pose becomes neutral.</p>
+      <dl class="controls">
+        <dt>Tilt</dt><dd>Tip the top away to dive, toward you to climb, lean to turn. She turns with a little weight.</dd>
+        <dt>Slide</dt><dd>Drag across the screen to steer directly.</dd>
+        <dt>Throttle</dt><dd>The slider on the right edge. A soft click at cruise; the bottom is all stop.</dd>
+        <dt>Tap</dt><dd>Scan a creature or a coral. Each new one goes into the databank.</dd>
+        <dt>A</dt><dd>Sonar ping. Hold for the chart: where you are and where the sea is taking you.</dd>
+        <dt>B</dt><dd>Level off. Hold to switch the floodlights.</dd>
+        <dt>C</dt><dd>Back to cruise. Hold for the databank.</dd>
+        <dt>Long press</dt><dd>Sound off or on.</dd>
+      </dl>
+      <p>Cruise low near the seabed and the next place lies deeper; climb toward the light and the seabed rises to meet you.</p>
+    </div>
+  </section>
+
+  <section class="zone">
+    <h2>The twilight zone</h2>
+    <p class="lede">The red goes first, then the green. Cliffs drop into blue, and the floodlights come on by themselves.</p>
+    <div class="shots">
+      <figure><img src="assets/04_drop_off.png" alt="An octopus on a dark cliff face"><figcaption><b>The Blue Drop-off.</b> Jellies drift past the ledges.</figcaption></figure>
+      <figure><img src="assets/12_jelly_cathedral.png" alt="A bloom of glowing pink jellyfish"><figcaption><b>Jellyfish Cathedral.</b> Hold south.</figcaption></figure>
+      <figure><img src="assets/14_brine_lakes.png" alt="Glowing green pools on the seabed"><figcaption><b>Brine Lakes.</b> Hold west: lakes with their own surface, under the sea.</figcaption></figure>
+      <figure><img src="assets/13_iron_graveyard.png" alt="A rusted wreck and a crane in murky water"><figcaption><b>Iron Graveyard.</b> Hold southwest.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="zone deep">
+    <h2>The midnight zone</h2>
+    <p class="lede">No sunlight reaches here. What you see is your own light, and the light of things that make it themselves.</p>
+    <div class="shots">
+      <figure><img src="assets/07_lantern_garden.png" alt="Bioluminescent corals and lanternfish"><figcaption><b>Lantern Garden.</b></figcaption></figure>
+      <figure><img src="assets/09_black_smokers.png" alt="Hydrothermal vents with crabs"><figcaption><b>Black Smokers.</b> Feel the vents rumble through the motor.</figcaption></figure>
+      <figure><img src="assets/11_fire_beneath.png" alt="Lava rivers and a green glowing plume"><figcaption><b>Fire Beneath.</b> Hold southeast.</figcaption></figure>
+      <figure><img src="assets/15_amethyst_deep.png" alt="Violet crystal clusters"><figcaption><b>Amethyst Deep.</b> Hold northwest. The crystals chime.</figcaption></figure>
+      <figure><img src="assets/17_leviathan_hall.png" alt="A sea serpent swims through a dark hall"><figcaption><b>Leviathan Hall.</b> Hold northeast.</figcaption></figure>
+      <figure><img src="assets/08_abyssal_plain.png" alt="A pale ooze plain lit by floodlights"><figcaption><b>Abyssal Plain.</b> Marine snow falls forever.</figcaption></figure>
+    </div>
+  </section>
+
+  <footer>Mantis Seadiver joins MantisPlanet and SpaceMantis. Everything you see and hear is made live on the device: no images, no samples.</footer>
+</main>
+</body>
+</html>
