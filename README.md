@@ -7,7 +7,7 @@ floodlights and the things that make their own.
 
 ## Build & install
 
-* **CI**: push this folder (or a zip of it) to the repo. `.github/workflows/ci.yml` unpacks a root zip over the
+* **CI**: push this folder (or a zip of it) to the repo. `GitHub/workflows/ci.yml` (move it to `.github/workflows/` in the repo) unpacks a root zip over the
   tree, builds with PlatformIO (`pio run -e m5stack-core2`), merges `firmware-merged.bin` and deploys the web
   installer in `website/`.
 * **Local**: `pio run -e m5stack-core2 -t upload`.
