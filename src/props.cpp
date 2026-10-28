@@ -43,7 +43,7 @@ static void drawKelp(float sx, float by, float s, float hgt, uint32_t seed) {
     float px = sx, py = by;
     for (int k = 1; k <= n; k++) {
         float u = (float)k / n, z = u * hgt;
-        float sway = (sinf(s_t * 0.7f + u * 2.4f + ph) * (0.25f + u * 1.3f) + u * 0.6f) * sw;
+        float sway = (fsin(s_t * 0.7f + u * 2.4f + ph) * (0.25f + u * 1.3f) + u * 0.6f) * sw;
         float x = sx + sway * s, y = by - z * s;
         thickLine(px, py, x, y, wp, floraI(2 + (u > 0.7f), s_far));
         if (s <= 4.5f && (k & 1)) put((int)(x + ((k & 2) ? 1 : -1)), (int)y, floraI(4, s_far));   // far off: a ragged stalk
@@ -52,9 +52,9 @@ static void drawKelp(float sx, float by, float s, float hgt, uint32_t seed) {
         if (s > 4.5f && (hb & 1) == (uint32_t)(k & 1)) {
             float side = (k & 1) ? 1.f : -1.f;
             float bl = (0.7f + 0.6f * Hf(hb, 1)) * s;
-            float flut = sinf(s_t * 1.3f + u * 3.f + ph) * 0.25f;
+            float flut = fsin(s_t * 1.3f + u * 3.f + ph) * 0.25f;
             float ang = -0.55f + flut + (side > 0 ? 0.f : 3.14159f) * 1.f;   // angled up and out
-            float ca = side > 0 ? cosf(-0.55f + flut) : -cosf(-0.55f - flut), sa = sinf(-0.55f + flut * side);
+            float ca = side > 0 ? fcos(-0.55f + flut) : -fcos(-0.55f - flut), sa = fsin(-0.55f + flut * side);
             (void)ang;
             float tx = x + ca * bl, ty = y + sa * bl;
             float w = fmaxf(0.6f, 0.13f * s);
@@ -82,7 +82,7 @@ static void drawGrass(float sx, float by, float s, float hgt, uint32_t seed) {
     for (int i = 0; i < n; i++) {
         float ox = (Hf(seed, i * 3 + 1) - 0.5f) * 0.5f * s;
         float h = hgt * (0.55f + 0.45f * Hf(seed, i * 3 + 2)) * s;
-        float lean = (sinf(s_t * 1.1f + Hf(seed, i) * 6.f) * sw + (Hf(seed, i * 3 + 3) - 0.5f) * 0.4f) * h;
+        float lean = (fsin(s_t * 1.1f + Hf(seed, i) * 6.f) * sw + (Hf(seed, i * 3 + 3) - 0.5f) * 0.4f) * h;
         float mx = sx + ox + lean * 0.35f, my = by - h * 0.55f;
         float tx = sx + ox + lean, ty = by - h;
         line((int)(sx + ox), (int)by, (int)mx, (int)my, floraI(2, s_far));
@@ -105,7 +105,7 @@ static void drawCoral(float sx, float by, float s, float a, uint8_t var, uint32_
             int guard = 0;
             while (n > 0 && guard++ < 60) {
                 Br b = st[--n];
-                float ex = b.x + cosf(b.ang) * b.len, ey = b.y + sinf(b.ang) * b.len;
+                float ex = b.x + fcos(b.ang) * b.len, ey = b.y + fsin(b.ang) * b.len;
                 thickLine(b.x, b.y, ex, ey, b.w, C(1 + (b.gen > 0)));
                 if (b.gen >= 2 || b.len < 1.5f) { splat((int)ex, (int)ey, (int)(b.w * 0.6f), C(3)); continue; }
                 for (int k = 0; k < 2 && n < 23; k++) {
@@ -141,15 +141,15 @@ static void drawCoral(float sx, float by, float s, float a, uint8_t var, uint32_
         }
         case 3: {   // a sea fan: a lattice spread on the current
             int rays = clampi((int)(R / 2.f), 5, 14);
-            float sway = sinf(s_t * 0.6f + Hf(seed, 4) * 6.f) * g_surge * 0.15f;
+            float sway = fsin(s_t * 0.6f + Hf(seed, 4) * 6.f) * g_surge * 0.15f;
             for (int i = 0; i < rays; i++) {
                 float ang = -1.5708f + ((float)i / (rays - 1) - 0.5f) * 2.f + sway;
                 float L = R * (0.75f + 0.25f * Hf(seed, 50 + i));
-                line((int)sx, (int)by, (int)(sx + cosf(ang) * L), (int)(by + sinf(ang) * L * 1.1f), C(1 + (i & 1)));
+                line((int)sx, (int)by, (int)(sx + fcos(ang) * L), (int)(by + fsin(ang) * L * 1.1f), C(1 + (i & 1)));
             }
             for (int k = 1; k <= 3 && R > 8.f; k++) {
                 float rr = R * k / 4.f;
-                for (int i = 0; i < 20; i++) { float ang = -1.5708f + (i / 19.f - 0.5f) * 2.f + sway; put((int)(sx + cosf(ang) * rr), (int)(by + sinf(ang) * rr * 1.1f), C(2)); }
+                for (int i = 0; i < 20; i++) { float ang = -1.5708f + (i / 19.f - 0.5f) * 2.f + sway; put((int)(sx + fcos(ang) * rr), (int)(by + fsin(ang) * rr * 1.1f), C(2)); }
             }
             break;
         }
@@ -183,8 +183,8 @@ static void drawAnemone(float sx, float by, float s, float a, uint32_t seed) {
     for (int i = 0; i < n; i++) {
         float ang = -3.14159f + (i + 0.5f) / n * 3.14159f;
         float L = R * (0.55f + 0.35f * Hf(seed, i));
-        float sw = sinf(s_t * 1.4f + i * 0.5f) * 0.25f * (g_surge + 0.3f);
-        float ex = sx + cosf(ang + sw) * L, ey = by - R * 0.35f + sinf(ang + sw) * L * 0.9f;
+        float sw = fsin(s_t * 1.4f + i * 0.5f) * 0.25f * (g_surge + 0.3f);
+        float ex = sx + fcos(ang + sw) * L, ey = by - R * 0.35f + fsin(ang + sw) * L * 0.9f;
         line((int)sx, (int)(by - R * 0.35f), (int)ex, (int)ey, s_glowy ? glowI(hue, 1) : coralI(hue, 2));
         put((int)ex, (int)ey, s_glowy ? glowI(hue, 3) : coralI(hue, 3));
     }
@@ -309,7 +309,7 @@ static void drawVent(float sx, float by, float s, float a, uint8_t var, uint32_t
         float ph = fmodf(s_t * (var ? 0.35f : 0.5f) + k / (float)puffs + Hf(seed, 20 + k) * 0.1f, 1.f);
         float rise = ph * (var ? 14.f + er * 10.f : 9.f) * s;
         float r = (0.35f + ph * (var ? 2.4f : 1.5f)) * s;
-        float drift = (sinf(s_t * 0.5f + k) * 0.5f + ph * 1.2f) * s;
+        float drift = (fsin(s_t * 0.5f + k) * 0.5f + ph * 1.2f) * s;
         float alpha = (1.f - ph) * (var ? 0.9f : 1.f);
         float ga = g_alpha;
         g_alpha = ga * alpha;
@@ -396,7 +396,7 @@ static void drawMonolith(float sx, float by, float s, float a, float b, uint32_t
         hspan((int)(sx - ww), (int)sx, y, stoneI(2, s_far));
         hspan((int)sx + 1, (int)(sx + ww), y, stoneI(3, s_far));
     }
-    float pulse = 0.5f + 0.5f * sinf(s_t * 1.3f + Hf(seed, 1) * 6.f);
+    float pulse = 0.5f + 0.5f * fsin(s_t * 1.3f + Hf(seed, 1) * 6.f);
     int rows = clampi((int)(h / fmaxf(3.f, s * 0.6f)), 2, 8);
     for (int r = 0; r < rows; r++) {
         uint32_t g = H32(seed, r);
@@ -455,7 +455,7 @@ static void drawWreck(float sx, float by, float s, float a, float b, uint8_t var
             thickLine(sx, by, sx, by - h, fmaxf(1.f, 0.3f * s), stoneI(3, s_far));
             float jx = sx + w * 0.6f, jy = by - h * 0.85f;
             thickLine(sx, by - h, jx, jy, fmaxf(1.f, 0.2f * s), stoneI(4, s_far));
-            float sway = sinf(s_t * 0.5f) * s * 0.2f;
+            float sway = fsin(s_t * 0.5f) * s * 0.2f;
             for (int k = 0; k < 10; k++) put((int)(jx + sway * k / 10.f), (int)(jy + k * h * 0.05f), (k & 1) ? stoneI(2, s_far) : stoneI(5, s_far));
             break;
         }
@@ -475,14 +475,14 @@ static void drawIce(float sx, float by, float s, float a, float b, uint32_t seed
 
 static void drawCrystal(float sx, float by, float s, float a, uint32_t seed) {
     int n = 3 + (int)(Hf(seed, 0) * 5.f);
-    float pulse = 0.5f + 0.5f * sinf(s_t * 0.9f + Hf(seed, 1) * 6.f);
+    float pulse = 0.5f + 0.5f * fsin(s_t * 0.9f + Hf(seed, 1) * 6.f);
     for (int i = 0; i < n; i++) {
         float ang = -1.5708f + (Hf(seed, 10 + i) - 0.5f) * 1.5f;
         float L = a * s * (0.4f + 0.6f * Hf(seed, 20 + i)), w = fmaxf(1.f, L * 0.16f);
         float bx = sx + (Hf(seed, 30 + i) - 0.5f) * a * s * 0.4f;
-        float tx = bx + cosf(ang) * L, ty = by + sinf(ang) * L;
-        float nx = -sinf(ang) * w, ny = cosf(ang) * w;
-        float kx = bx + cosf(ang) * L * 0.8f, ky = by + sinf(ang) * L * 0.8f;
+        float tx = bx + fcos(ang) * L, ty = by + fsin(ang) * L;
+        float nx = -fsin(ang) * w, ny = fcos(ang) * w;
+        float kx = bx + fcos(ang) * L * 0.8f, ky = by + fsin(ang) * L * 0.8f;
         int hue = (int)(H32(seed, 40 + i) & 3);
         fillTri(bx - nx, by - ny, bx, by, kx - nx, ky - ny, coralI(hue, 1));
         fillTri(bx - nx, by - ny, kx, ky, kx - nx, ky - ny, coralI(hue, 1));
@@ -501,7 +501,7 @@ static void drawDeadTree(float sx, float by, float s, float a, uint32_t seed) {
     int guard = 0;
     while (n > 0 && guard++ < 40) {
         Br b = st[--n];
-        float ex = b.x + cosf(b.ang) * b.len, ey = b.y + sinf(b.ang) * b.len;
+        float ex = b.x + fcos(b.ang) * b.len, ey = b.y + fsin(b.ang) * b.len;
         thickLine(b.x, b.y, ex, ey, b.w, (uint8_t)(R_FAUNA + (b.gen ? FA_DGREY : FA_BLACK)));
         if (b.gen >= 3) continue;
         for (int k = 0; k < 2 && n < 19; k++) st[n++] = {ex, ey, b.ang + (k ? 0.6f : -0.55f) + (Hf(seed, guard * 2 + k) - 0.5f) * 0.5f, b.len * 0.62f, fmaxf(1.f, b.w * 0.6f), b.gen + 1};
@@ -514,11 +514,11 @@ static void drawBones(float sx, float by, float s, float a, uint32_t seed) {
     int ribs = 8;
     for (int i = 0; i < ribs; i++) {
         float x = sx - L * 0.4f + i * L * 0.8f / (ribs - 1);
-        float rh = L * 0.22f * sinf(3.14159f * (i + 0.5f) / ribs);
+        float rh = L * 0.22f * fsin(3.14159f * (i + 0.5f) / ribs);
         float px = x, py = by;
         for (int k = 1; k <= 8; k++) {
             float u = k / 8.f;
-            float xx = x + sinf(u * 3.14159f) * L * 0.05f, yy = by - sinf(u * 2.6f) * rh;
+            float xx = x + fsin(u * 3.14159f) * L * 0.05f, yy = by - fsin(u * 2.6f) * rh;
             line((int)px, (int)py, (int)xx, (int)yy, R_FAUNA + (k < 4 ? FA_WHITE : FA_LGREY));
             px = xx; py = yy;
         }
@@ -545,12 +545,12 @@ static void drawDetail(float sx, float by, float s, float a, uint8_t var, uint32
         case 0: {   // a starfish
             uint8_t c = (uint8_t)(R_FAUNA + ((H32(seed, 1) % 3) == 0 ? FA_OCTO_R : FA_OCTO_O));
             if (H32(seed, 2) % 4 == 0) c = R_FAUNA2 + F2_PURPLE;
-            for (int k = 0; k < 5; k++) { float ang = k * 1.2566f + Hf(seed, 3); thickLine(sx, by - R * 0.15f, sx + cosf(ang) * R, by - R * 0.15f + sinf(ang) * R * 0.35f, fmaxf(1.f, R * 0.3f), c); }
+            for (int k = 0; k < 5; k++) { float ang = k * 1.2566f + Hf(seed, 3); thickLine(sx, by - R * 0.15f, sx + fcos(ang) * R, by - R * 0.15f + fsin(ang) * R * 0.35f, fmaxf(1.f, R * 0.3f), c); }
             break;
         }
         case 1: {   // an urchin
             splat((int)sx, (int)(by - R * 0.4f), (int)(R * 0.4f), R_FAUNA + FA_BLACK);
-            for (int k = 0; k < 10; k++) { float ang = k * 0.628f; line((int)sx, (int)(by - R * 0.4f), (int)(sx + cosf(ang) * R), (int)(by - R * 0.4f + sinf(ang) * R * 0.8f), R_FAUNA + FA_DGREY); }
+            for (int k = 0; k < 10; k++) { float ang = k * 0.628f; line((int)sx, (int)(by - R * 0.4f), (int)(sx + fcos(ang) * R), (int)(by - R * 0.4f + fsin(ang) * R * 0.8f), R_FAUNA + FA_DGREY); }
             break;
         }
         case 2:     // a shell
@@ -570,11 +570,11 @@ static void fishBody(float cx, float cy, float len, float hgt, float dir, uint8_
     int n = (int)len + 1;
     for (int i = 0; i <= n; i++) {
         float v = (float)i / n;                                       // 0 tail .. 1 head
-        float prof = sinf(3.14159f * clampf(v * 0.92f + 0.06f, 0.f, 1.f));
-        prof = powf(prof, 0.8f) * (v < 0.2f ? 0.5f + v * 2.5f : 1.f);
+        float prof = fsin(3.14159f * clampf(v * 0.92f + 0.06f, 0.f, 1.f));
+        prof = prof * (1.25f - 0.25f * prof) * (v < 0.2f ? 0.5f + v * 2.5f : 1.f);
         float hw = hgt * 0.5f * prof;
         float x = cx + dir * (v - 0.5f) * len;
-        float yo = sinf(wig - v * 4.f) * hgt * 0.12f * (1.f - v);
+        float yo = fsin(wig - v * 4.f) * hgt * 0.12f * (1.f - v);
         int y0 = (int)(cy + yo - hw), y1 = (int)(cy + yo + hw);
         for (int y = y0; y <= y1; y++) {
             float q = (y - (cy + yo - hw)) / fmaxf(1.f, 2.f * hw);
@@ -583,7 +583,7 @@ static void fishBody(float cx, float cy, float len, float hgt, float dir, uint8_
     }
     // the tail fin
     float tx = cx - dir * len * 0.5f;
-    float tw = hgt * 0.65f, flick = sinf(wig) * hgt * 0.2f;
+    float tw = hgt * 0.65f, flick = fsin(wig) * hgt * 0.2f;
     fillTri(tx + dir * len * 0.06f, cy, tx - dir * len * 0.16f, cy - tw + flick, tx - dir * len * 0.16f, cy + tw + flick, back);
     if (eye && len > 6.f) put((int)(cx + dir * len * 0.36f), (int)(cy - hgt * 0.12f), R_FAUNA + FA_BLACK);
 }
@@ -601,18 +601,18 @@ static void drawCritter(const Critter& c, float sx, float sy, float s, float dir
     switch (c.kind) {
         case CR_MANTA: {
             float span = 4.2f * sz * s, chord = 1.8f * sz * s;
-            float flap = sinf(c.phase * 1.4f) * span * 0.16f;
+            float flap = fsin(c.phase * 1.4f) * span * 0.16f;
             uint8_t top = s_camBelow > 0.f ? (uint8_t)(R_FAUNA + FA_WHITE) : (uint8_t)(R_FAUNA + FA_BLACK);
             fillTri(sx + dir * chord * 0.5f, sy, sx - dir * chord * 0.3f, sy, sx - dir * chord * 0.1f, sy - span * 0.5f - flap, top);
             fillTri(sx + dir * chord * 0.5f, sy, sx - dir * chord * 0.3f, sy, sx - dir * chord * 0.1f, sy + span * 0.12f + flap * 0.3f, R_FAUNA + FA_DGREY);
             ellipse(sx, sy, chord * 0.45f, fmaxf(1.f, chord * 0.14f), R_FAUNA + FA_DGREY);
-            line((int)(sx - dir * chord * 0.4f), (int)sy, (int)(sx - dir * chord * 1.3f), (int)(sy + sinf(c.phase) * 2.f), R_FAUNA + FA_BLACK);
+            line((int)(sx - dir * chord * 0.4f), (int)sy, (int)(sx - dir * chord * 1.3f), (int)(sy + fsin(c.phase) * 2.f), R_FAUNA + FA_BLACK);
             put((int)(sx + dir * chord * 0.55f), (int)(sy - 1), R_FAUNA + FA_BLACK);
             break;
         }
         case CR_TURTLE: {
             float L = 1.1f * sz * s;
-            float paddle = sinf(c.phase * 1.6f);
+            float paddle = fsin(c.phase * 1.6f);
             fillTri(sx + dir * L * 0.15f, sy, sx - dir * L * 0.05f, sy + 1, sx + dir * L * 0.05f, sy + L * (0.4f + 0.2f * paddle), R_FAUNA + FA_TURT_G);
             ellipse(sx, sy - L * 0.05f, L * 0.45f, L * 0.26f, R_FAUNA + FA_TURT_B);
             if (L > 8.f) for (int k = 0; k < 5; k++) put((int)(sx - L * 0.3f + k * L * 0.15f), (int)(sy - L * 0.15f), R_FAUNA + FA_SHELL);
@@ -627,7 +627,7 @@ static void drawCritter(const Critter& c, float sx, float sy, float s, float dir
             int count = dol ? c.count : 1;
             for (int k = 0; k < count; k++) {
                 uint32_t hk = H32(c.seed, k);
-                float ox = k ? (Hf(hk, 1) - 0.5f) * 4.f * s : 0.f, oy = k ? (Hf(hk, 2) - 0.5f) * 1.5f * s + sinf(c.phase + k) * s * 0.3f : 0.f;
+                float ox = k ? (Hf(hk, 1) - 0.5f) * 4.f * s : 0.f, oy = k ? (Hf(hk, 2) - 0.5f) * 1.5f * s + fsin(c.phase + k) * s * 0.3f : 0.f;
                 float L = (sh ? 2.6f : dol ? 2.3f : coel ? 1.8f : 4.f) * sz * s, Hh = L * (sh ? 0.24f : dol ? 0.26f : coel ? 0.3f : 0.25f);
                 uint8_t back = (uint8_t)(R_FAUNA + (sh ? FA_SHARK : dol ? FA_GREY : FA_NARWHAL)), belly = R_FAUNA + FA_WHITE;
                 if (coel) { back = R_FAUNA2 + F2_COEL; belly = R_FAUNA2 + F2_COEL; }
@@ -650,7 +650,7 @@ static void drawCritter(const Critter& c, float sx, float sy, float s, float dir
             float L = 13.f * sz * s, Hh = L * 0.2f;
             uint8_t body = R_FAUNA + FA_WHALE, belly = R_FAUNA + FA_GREY;
             fishBody(sx, sy, L, Hh, dir, body, body, belly, c.phase * 1.2f, false);
-            float fl = sinf(c.phase * 0.8f) * Hh * 0.6f;
+            float fl = fsin(c.phase * 0.8f) * Hh * 0.6f;
             fillTri(sx + dir * L * 0.15f, sy + Hh * 0.2f, sx + dir * L * 0.05f, sy + Hh * 0.25f, sx - dir * L * 0.12f, sy + Hh * 1.4f + fl, R_FAUNA + FA_LGREY);   // the long flipper
             for (int k = 0; k < 4 && L > 20.f; k++) line((int)(sx + dir * L * 0.4f), (int)(sy + Hh * (0.15f + k * 0.07f)), (int)(sx + dir * L * 0.05f), (int)(sy + Hh * (0.22f + k * 0.07f)), belly);
             if (L > 20.f) put((int)(sx + dir * L * 0.35f), (int)(sy), R_FAUNA + FA_BLACK);
@@ -660,11 +660,11 @@ static void drawCritter(const Critter& c, float sx, float sy, float s, float dir
             int n = c.count;
             for (int k = 0; k < n; k++) {
                 uint32_t hk = H32(c.seed, k);
-                float wx = c.x + (Hf(hk, 1) - 0.5f) * 5.f, wy = c.y + (Hf(hk, 2) - 0.5f) * 5.f, wz = c.z + (Hf(hk, 3) - 0.5f) * 4.f + sinf(s_t * 0.7f + k) * 0.3f;
+                float wx = c.x + (Hf(hk, 1) - 0.5f) * 5.f, wy = c.y + (Hf(hk, 2) - 0.5f) * 5.f, wz = c.z + (Hf(hk, 3) - 0.5f) * 4.f + fsin(s_t * 0.7f + k) * 0.3f;
                 float jx, jy, jf;
                 if (!proj(wx, wy, wz, jx, jy, jf)) continue;
                 float js = F / jf;
-                float pulse = 0.5f + 0.5f * sinf(s_t * 2.2f + Hf(hk, 4) * 6.f);
+                float pulse = 0.5f + 0.5f * fsin(s_t * 2.2f + Hf(hk, 4) * 6.f);
                 float R = (0.25f + 0.25f * Hf(hk, 5)) * sz * js;
                 float rx = R * (0.9f + 0.15f * pulse), ry = R * (0.75f - 0.2f * pulse);
                 bool violet = (hk >> 9) & 1;
@@ -674,7 +674,7 @@ static void drawCritter(const Critter& c, float sx, float sy, float s, float dir
                     float tx = jx + (t - 2) * rx * 0.35f;
                     float px = tx, py = jy;
                     for (int q = 1; q <= 6; q++) {
-                        float yy = jy + q * R * 0.45f, xx = tx + sinf(s_t * 1.6f + q * 0.8f + t) * R * 0.18f * q * 0.3f;
+                        float yy = jy + q * R * 0.45f, xx = tx + fsin(s_t * 1.6f + q * 0.8f + t) * R * 0.18f * q * 0.3f;
                         line((int)px, (int)py, (int)xx, (int)yy, t & 1 ? bell : (uint8_t)(R_FAUNA + (violet ? FA_JELLY_P : FA_JELLY_V)));
                         px = xx; py = yy;
                     }
@@ -700,8 +700,8 @@ static void drawCritter(const Critter& c, float sx, float sy, float s, float dir
                 float px = sx, py = sy - L * 0.15f;
                 for (int q = 1; q <= 5; q++) {
                     float u = q / 5.f;
-                    float curl = sinf(s_t * 1.2f + k + u * 3.f) * 0.6f * u;
-                    float xx = sx + cosf(ang * 0.5f + 1.57f + curl + (k - 3.5f) * 0.25f) * L * u * 1.1f * (k < 4 ? -1.f : 1.f) * 0.8f, yy = sy - L * 0.1f + u * L * 0.1f + sinf(curl * 2.f) * L * 0.1f;
+                    float curl = fsin(s_t * 1.2f + k + u * 3.f) * 0.6f * u;
+                    float xx = sx + fcos(ang * 0.5f + 1.57f + curl + (k - 3.5f) * 0.25f) * L * u * 1.1f * (k < 4 ? -1.f : 1.f) * 0.8f, yy = sy - L * 0.1f + u * L * 0.1f + fsin(curl * 2.f) * L * 0.1f;
                     thickLine(px, py, xx, yy, fmaxf(1.f, L * 0.1f * (1.f - u * 0.7f)), R_FAUNA + (q & 1 ? FA_OCTO_R : FA_OCTO_O));
                     px = xx; py = yy;
                 }
@@ -718,7 +718,7 @@ static void drawCritter(const Critter& c, float sx, float sy, float s, float dir
             fillTri(sx - dir * L * 0.5f, sy, sx - dir * L * 0.85f, sy - L * 0.3f, sx - dir * L * 0.85f, sy + L * 0.3f, R_FAUNA + FA_BLACK);
             hspan((int)(sx + dir * L * 0.1f), (int)(sx + dir * L * 0.5f), (int)(sy + L * 0.12f), R_FAUNA + FA_BLACK);   // the jaw
             for (int k = 0; k < 4 && L > 6.f; k++) put((int)(sx + dir * (L * 0.15f + k * L * 0.1f)), (int)(sy + L * 0.08f), R_FAUNA + FA_WHITE);
-            float lx = sx + dir * L * 0.65f, ly = sy - L * 0.55f + sinf(s_t * 1.5f) * L * 0.05f;
+            float lx = sx + dir * L * 0.65f, ly = sy - L * 0.55f + fsin(s_t * 1.5f) * L * 0.05f;
             line((int)(sx + dir * L * 0.1f), (int)(sy - L * 0.38f), (int)lx, (int)ly, R_FAUNA + FA_DGREY);
             float ga = g_alpha; uint8_t gz = g_zc; g_alpha = 1.f; g_zc = 0;    // the lure shines through the dark
             splat((int)lx, (int)ly, (int)fmaxf(1.f, L * 0.12f), glowI(1, 1));
@@ -734,8 +734,8 @@ static void drawCritter(const Critter& c, float sx, float sy, float s, float dir
             float segL = 0.42f * sz;
             for (int k = N - 1; k >= 0; k--) {
                 float u = (float)k / N;
-                float lat = sinf(c.phase * 1.2f - k * 0.22f) * 1.8f * (0.3f + u);
-                float vert = sinf(c.phase * 0.7f - k * 0.15f) * 0.9f;
+                float lat = fsin(c.phase * 1.2f - k * 0.22f) * 1.8f * (0.3f + u);
+                float vert = fsin(c.phase * 0.7f - k * 0.15f) * 0.9f;
                 float wx = c.x - vx * k * segL - vy * lat, wy = c.y - vy * k * segL + vx * lat, wz = c.z + vert;
                 float px, py, pf;
                 if (!proj(wx, wy, wz, px, py, pf)) continue;
@@ -766,7 +766,7 @@ static void drawCritter(const Critter& c, float sx, float sy, float s, float dir
                 float ox = (Hf(hk, 1) - 0.5f) * 3.f * s, oy = (Hf(hk, 2) - 0.5f) * 0.4f * s;
                 float L = (c.kind == CR_CRAB ? 0.3f : 0.35f) * sz * s;
                 if (L < 1.5f) { put((int)(sx + ox), (int)(sy + oy), R_FAUNA + FA_WHITE); continue; }
-                float x = sx + ox + sinf(c.phase * 2.f + k) * L * 0.2f, y = sy + oy;
+                float x = sx + ox + fsin(c.phase * 2.f + k) * L * 0.2f, y = sy + oy;
                 if (c.kind == CR_CRAB) {
                     uint8_t col = (uint8_t)(R_FAUNA + (white ? FA_WHITE : FA_OCTO_R));
                     for (int q = 0; q < 3; q++) { line((int)(x - L * 0.3f), (int)(y - L * 0.2f), (int)(x - L * 0.75f), (int)(y + L * 0.1f * q), col); line((int)(x + L * 0.3f), (int)(y - L * 0.2f), (int)(x + L * 0.75f), (int)(y + L * 0.1f * q), col); }
@@ -789,9 +789,9 @@ static void drawCritter(const Critter& c, float sx, float sy, float s, float dir
         case CR_NAUTILUS: {
             float R = 0.22f * sz * s;
             splat((int)sx, (int)sy, (int)fmaxf(1.f, R), R_FAUNA + FA_WHITE);
-            for (int k = 0; k < 4 && R > 3.f; k++) { float a = k * 0.8f; line((int)sx, (int)sy, (int)(sx - dir * cosf(a) * R), (int)(sy - sinf(a) * R), R_FAUNA + FA_OCTO_O); }
+            for (int k = 0; k < 4 && R > 3.f; k++) { float a = k * 0.8f; line((int)sx, (int)sy, (int)(sx - dir * fcos(a) * R), (int)(sy - fsin(a) * R), R_FAUNA + FA_OCTO_O); }
             splat((int)(sx - dir * R * 0.2f), (int)(sy + R * 0.1f), (int)fmaxf(0.f, R * 0.35f), R_FAUNA + FA_SHELL);
-            for (int k = 0; k < 5; k++) line((int)(sx + dir * R * 0.8f), (int)(sy + R * 0.2f), (int)(sx + dir * R * (1.4f + 0.1f * k)), (int)(sy + R * (0.1f + 0.15f * k) + sinf(s_t * 2.f + k)), R_FAUNA + FA_OCTO_O);
+            for (int k = 0; k < 5; k++) line((int)(sx + dir * R * 0.8f), (int)(sy + R * 0.2f), (int)(sx + dir * R * (1.4f + 0.1f * k)), (int)(sy + R * (0.1f + 0.15f * k) + fsin(s_t * 2.f + k)), R_FAUNA + FA_OCTO_O);
             break;
         }
         case CR_EEL: {
@@ -800,7 +800,7 @@ static void drawCritter(const Critter& c, float sx, float sy, float s, float dir
             float px = sx + dir * L * 0.5f, py = sy;
             for (int q = 1; q <= n; q++) {
                 float u = (float)q / n;
-                float xx = sx + dir * (0.5f - u) * L, yy = sy + sinf(c.phase * 3.f - u * 7.f) * L * 0.07f;
+                float xx = sx + dir * (0.5f - u) * L, yy = sy + fsin(c.phase * 3.f - u * 7.f) * L * 0.07f;
                 thickLine(px, py, xx, yy, fmaxf(1.f, L * 0.08f * (1.f - u * 0.6f)), R_FAUNA + (q & 2 ? FA_TURT_G : FA_SHELL));
                 px = xx; py = yy;
             }

@@ -38,6 +38,16 @@ static uint8_t s_dn[256], s_up[256];      // one step darker / lighter within th
 static bool s_emis[256];                  // makes its own light: the lamp's cone and shadows leave it alone
 static uint8_t* s_ct = nullptr;           // 64x64 caustic net
 static float s_sunX = 80.f, s_sunY = -40.f, s_sunVis = 0.f;
+// The ESP32 has no fast expf / atanf: the hot loops read these instead.
+static float s_fogLUT[257];        // 1 - exp(-x), x = 0..4 in 64ths
+static float s_deepLUT[257];       // exp(-depth / 22 m), depth = 0..256 m: caustics fade with the floor's depth
+static float s_rootLUT[257];       // sqrt(x), x = 0..4 in 64ths (the lamp's cone)
+static float s_colLen[W];          // sqrt(1 + dx^2) per screen column
+static inline float fogFast(float x) { x *= 64.f; if (x >= 256.f) return s_fogLUT[256]; int i = (int)x; float f = x - i; return s_fogLUT[i] + (s_fogLUT[i + 1] - s_fogLUT[i]) * f; }
+static void buildLUTs() {
+    for (int i = 0; i <= 256; i++) { s_fogLUT[i] = 1.f - expf(-i / 64.f); s_deepLUT[i] = expf(-i / 22.f); s_rootLUT[i] = sqrtf(i / 64.f); }
+    for (int x = 0; x < W; x++) { float d = (x + 0.5f - W * 0.5f) / F; s_colLen[x] = sqrtf(1.f + d * d); }
+}
 
 void line(int x0, int y0, int x1, int y1, uint8_t c) {
     int dx = x1 > x0 ? x1 - x0 : x0 - x1, sx = x0 < x1 ? 1 : -1;
@@ -362,27 +372,28 @@ static void drawSurface() {
         float tanE = (g_hor - y - 0.5f) / F;
         float f = hc / tanE;
         if (f > reach) continue;
+        const float invV = 1.f / (g_vis * 1.1f);
         for (int x = 0; x < W; x++) {
             float dxs = (x + 0.5f - W * 0.5f) / F;
             float l = dxs * f;
             float wx = g_cx + f * g_cY - l * g_sY, wy = g_cy + f * g_sY + l * g_cY;
-            float hd = sqrtf(f * f + l * l);
-            float dist = sqrtf(hd * hd + hc * hc);
-            float fog = 1.f - expf(-dist / (g_vis * 1.1f));
+            float hd = f * s_colLen[x];
+            float tE = hc / hd;                                          // tan of the elevation you're looking up at
+            float dist = hd * sqrtf(1.f + tE * tE);
+            float fog = fogFast(dist * invV);
             if (dith(x, y) < (fog - 0.55f) * 2.2f) continue;            // lost in the blue
-            float e = atanf(hc / hd);
             uint8_t c;
             if (ice) {
                 float n = vnoise2(wx * 0.18f, wy * 0.18f, 0x1CEu);
                 float cr = fabsf(vnoise2(wx * 0.06f, wy * 0.06f, 0xC7Au) - 0.5f);
-                float sh = 2.f + n * 4.5f + (e > 0.9f ? 1.5f : 0.f);
+                float sh = 2.f + n * 4.5f + (tE > 1.26f ? 1.5f : 0.f);
                 if (cr < 0.018f) sh = 7.6f;                                  // a crack: light pours through
                 else if (cr < 0.04f) sh += 1.5f;
                 c = (uint8_t)(R_SURF + (sh > 4.f ? 8 : 0) + clampi(band(sh > 4.f ? sh - 2.f : sh, x, y), 0, 7));
             } else {
                 float wv = fsin(wx * 0.9f + t * 1.3f + fsin(wy * 0.7f + t * 0.9f) * 1.4f) + 0.7f * fsin(wy * 1.1f - t * 1.1f + fsin(wx * 0.5f - t * 0.4f) * 1.2f);
                 wv *= waves;
-                float win = smoothstep(0.55f, 0.78f, e);                     // Snell's window: the sky above you
+                float win = smoothstep(0.613f, 0.989f, tE);                  // Snell's window: the sky above you (tan 0.55 .. tan 0.78)
                 if (win > dith(x, y)) c = (uint8_t)(R_SURF + 8 + clampi(band(3.2f + wv * 1.5f + win * 2.4f, x, y), 0, 7));
                 else c = (uint8_t)(R_SURF + clampi(band(3.f + wv * 1.8f, x, y), 0, 7));
                 if (sc.rain > 0.2f && (hash32((uint32_t)(int)(wx * 6.f) * 0x9E37u ^ (uint32_t)(int)(wy * 6.f) * 0x85EBu ^ (uint32_t)(int)(t * 7.f)) & 255u) < (uint32_t)(sc.rain * 10.f)) c = R_SURF + 15;
@@ -414,14 +425,15 @@ static void drawSeabed() {
     const Scene& sc = g_scene;
     const BiomeParams& b = biomeAt(sc.distance);
     const int ox = terrainOx(), oy = terrainOy();
-    const float fmax = fminf(124.f, g_vis * 1.6f);
+    const float fmax = fminf(112.f, g_vis * 1.6f);          // short of the grid's edge, where new cells are still being dreamt
     const float clear = clampf(1.f - (sc.cloud - 0.5f) * 1.6f, 0.2f, 1.f) * (1.f - 0.6f * sc.rain);
     const float cs = b.caust * clampf(sc.dayLight * 1.3f, 0.f, 1.f) * clear * 3.2f;
     const float t = g_t;
     for (int x = 0; x < W; x++) {
         float dxs = (x + 0.5f - W * 0.5f) / F;
         float rdx = g_cY - dxs * g_sY, rdy = g_sY + dxs * g_cY;
-        float lenH = sqrtf(1.f + dxs * dxs);
+        float lenH = s_colLen[x];
+        const float invVis = 1.f / g_vis;
         int ybot = H;
         float pY = 1e9f, pSh = 0.f, pFog = 0.f, pWx = 0.f, pWy = 0.f, pFw = 0.f;
         uint8_t pMat = 0;
@@ -431,7 +443,7 @@ static void drawSeabed() {
             float wx = g_cx + rdx * f, wy = g_cy + rdy * f;
             float gx = wx * (1.f / TG_CELL), gy = wy * (1.f / TG_CELL);
             int ix = (int)floorf(gx), iy = (int)floorf(gy);
-            if (ix < ox || iy < oy || ix + 1 >= ox + TG_N || iy + 1 >= oy + TG_N) break;
+            if (ix < ox + 2 || iy < oy + 2 || ix + 3 >= ox + TG_N || iy + 3 >= oy + TG_N) break;   // the outer cells may still be being dreamt
             float fx = gx - ix, fy = gy - iy;
             int i0 = ix & TG_MASK, i1 = (ix + 1) & TG_MASK, j0 = (iy & TG_MASK) * TG_N, j1 = ((iy + 1) & TG_MASK) * TG_N;
             float ha = Hh[j0 + i0], hb = Hh[j0 + i1], hc = Hh[j1 + i0], hd = Hh[j1 + i1];
@@ -446,14 +458,14 @@ static void drawSeabed() {
             if (ft == TF_BRINE || ft == TF_LAVA) fw0 = fw0 > 0.45f ? 1.f : 0.f;
             float vz = h - g_cz;
             float d3 = sqrtf(f * f * lenH * lenH + vz * vz);
-            float fog = 1.f - expf(-d3 / g_vis);
+            float fog = fogFast(d3 * invVis);
             if (first) { pY = fmaxf(sy, (float)H); pSh = sh; pFog = fog; pWx = wx; pWy = wy; pMat = mat; pFw = fw0; first = false; }
             int iyTop = (int)ceilf(sy);
             if (iyTop < ybot) {
                 int r0 = iyTop < 0 ? 0 : iyTop;
                 float span = pY - sy;
                 uint8_t zc = zcode(d3);
-                float cdepth = expf(h / 22.f);                                  // caustics fade with the floor's depth
+                float cdepth = s_deepLUT[clampi((int)(-h), 0, 256)];             // caustics fade with the floor's depth
                 for (int y = ybot - 1; y >= r0; y--) {
                     float u = span > 0.01f ? clampf((pY - (y + 0.5f)) / span, 0.f, 1.f) : 1.f;   // 0 = previous sample (nearer) .. 1 = this one
                     float px = pWx + (wx - pWx) * u, py = pWy + (wy - pWy) * u;
@@ -495,7 +507,7 @@ static void drawSeabed() {
                 ybot = r0;
             }
             pY = sy; pSh = sh; pFog = fog; pWx = wx; pWy = wy; pMat = mat; pFw = fw0;
-            f += 0.06f + f * 0.035f;
+            f += 0.07f + f * 0.04f;
         }
     }
 }
@@ -516,7 +528,7 @@ static void drawParticles() {
                 float wx = (cx0 + i + ((h >> 10) & 255) / 255.f) * C;
                 float wy = (cy0 + j + ((h >> 18) & 255) / 255.f) * C;
                 float wz = (cz0 + k) * C + fmodf(((h >> 26) & 63) / 63.f * C - fall * (0.6f + ((h >> 4) & 3) * 0.2f), C);
-                wx += sinf(g_t * 0.4f + (h & 63)) * 0.15f * (1.f + g_surge);
+                wx += fsin(g_t * 0.4f + (h & 63)) * 0.15f * (1.f + g_surge);
                 float sx, sy, f;
                 if (!proj(wx, wy, wz, sx, sy, f)) continue;
                 if (f > 14.f) continue;
@@ -636,9 +648,10 @@ static void drawLampCone() {
         float v = (y - H * 0.56f) / (H * 0.62f);
         for (int x = 0; x < W; x++) {
             float u = (x - W * 0.5f) / (W * 0.62f);
-            float r = sqrtf(u * u + v * v);
+            float rr = u * u + v * v;
             uint8_t& p = fb[y * W + x];
-            if (s_emis[p]) continue;
+            if (s_emis[p] || (rr > 0.25f && rr < 0.3844f)) continue;      // the ring between the beam and the falloff: untouched
+            float r = s_rootLUT[rr >= 4.f ? 256 : (int)(rr * 64.f)];
             if (r > 0.62f) {
                 int st = (int)((r - 0.62f) * 7.f * k + dith(x, y));
                 for (int i = 0; i < st && i < 3; i++) p = s_dn[p];
@@ -800,6 +813,7 @@ void renderInitImpl() {
     buildStepTables();
     buildCaustics();
     buildOcc();
+    buildLUTs();
     if (!s_rayT) s_rayT = (uint8_t*)memSlow(RAY_NB * RAY_NR);
     for (int r = 0; r <= 16; r++)
         for (int dy = 0; dy <= r; dy++) {

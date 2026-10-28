@@ -52,6 +52,7 @@ void sfxSonar(float delay, float strength) { post({EV_SONAR, 0, delay, strength}
 // ---------------- master bus ----------------
 static dsp::Reverb s_rev;
 static dsp::DubDelay s_dly;
+static bool s_running = false;
 static Bus s_bus;
 static float s_env = 0.f, s_gain = 1.f;
 static dsp::SVF s_hp;
@@ -142,12 +143,15 @@ void audioBegin() {
     dsp::init();
     rng.s = 0x2545F491u;
     s_rev.begin();
-    s_dly.begin(12000);
+    s_dly.begin((int)(AUDIO_SR * 60.f / MUSIC_BPM * 0.75f) + 600);   // a dotted eighth at the score's tempo, with room for the wow
     oceanInit();
     musicInit();
 #ifndef HOST
-    xTaskCreatePinnedToCore(audioTask, "audio", 6144, nullptr, 4, nullptr, 0);   // above the LCD push (2), below the driver (5)
+    s_running = xTaskCreatePinnedToCore(audioTask, "audio", 6144, nullptr, 4, nullptr, 0) == pdPASS;   // above the LCD push (2), below the driver (5)
+#else
+    s_running = true;
 #endif
 }
+bool audioRunning() { return s_running; }
 
 }

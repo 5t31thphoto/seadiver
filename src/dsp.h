@@ -135,13 +135,14 @@ struct DubDelay {
         wowPh += 0.35f * INV_SR;
         if (wowPh > 1.f) wowPh -= 1.f;
         float d = time * (1.f + 0.0016f * sine((uint32_t)(wowPh * 4294967296.f)));
+        if (d > size - 2) d = (float)(size - 2);       // never read past the buffer, whatever the tempo
         float rp = (float)w - d;
         while (rp < 0.f) rp += size;
         int i0 = (int)rp;
         float f = rp - i0;
         int i1 = i0 + 1 >= size ? 0 : i0 + 1;
         float y = (buf[i0] + (buf[i1] - buf[i0]) * f) * (1.f / 16384.f);
-        lpz += lpk * (y - lpz);
+        lpz += lpk * (y - lpz) + 1e-18f;              // the tiny offset keeps a fading echo out of denormals (slow on every FPU)
         hpz += hpk * (lpz - hpz);
         float fbs = softclip((lpz - hpz) * fb * 1.15f);
         float wv = clampf(in + fbs, -1.9f, 1.9f);

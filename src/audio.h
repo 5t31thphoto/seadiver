@@ -30,6 +30,7 @@ float audioBeats();     // musical beats as heard right now (output latency comp
 float audioKick();      // 0..1: the groove has a kick (the motor plays it on the beat)
 float audioGroove();
 
+bool audioRunning();     // false: the sound task couldn't start (no internal RAM for its stack)
 void audioSetMuted(bool muted);
 bool audioMuted();
 void audioRender(int16_t* out, int n);

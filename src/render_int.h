@@ -67,6 +67,7 @@ inline float fsin(float x) {
     float y = 8.f * x - 16.f * x * fabsf(x);
     return 0.225f * (y * fabsf(y) - y) + y;
 }
+inline float fcos(float x) { return fsin(x + 1.5707963f); }
 inline uint8_t zcode(float d) { float c = sqrtf(fmaxf(d, 0.f)) * 22.f; return (uint8_t)(c > 254.f ? 254.f : c); }
 inline float fogOf(float d) { return 1.f - expf(-d / g_vis); }
 

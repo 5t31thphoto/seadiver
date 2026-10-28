@@ -19,6 +19,7 @@
 
 static float subX = 0.f, subY = 0.f, subZ = -5.f;
 static float subSpeed = 0.f;
+static constexpr float SPEED_TAU = 1.1f;      // seconds to reach the throttle's speed (the hull's weight in the water)
 static float distanceTravelled = 0.f;
 static bool lightsOn = true, lightsAuto = true;
 static bool wasBumped = false;
@@ -32,6 +33,7 @@ static const char* bannerText = nullptr;
 static float msgT = 0.f;
 static const char* msgText = nullptr;
 static uint32_t muteIconAt = 0;
+static bool bootMuted = false;
 static float echoAt = -1.f, echoStr = 0.f;
 static float creakT = 20.f, critterSoundT = 8.f, cardT = 0.f;
 // the scanner
@@ -136,6 +138,7 @@ void setup() {
     cfg.internal_mic = false;                    // the Core2 shares one I2S port: the speaker keeps it
     M5.begin(cfg);
     mantis::audioSpeakerBegin();                 // claim the speaker's DMA buffers before anything else allocates
+    mantis::audioBegin();                        // ...and the sound task's stack and buffers: internal RAM goes first come, first served
     M5.Display.setRotation(1);
     M5.Display.setBrightness(110);
     if (M5.Imu.isEnabled()) {
@@ -163,9 +166,8 @@ void setup() {
     mantis::sceneInit();
     mantis::displayInit();
     hx::begin();
-    mantis::audioBegin();
     mantis::databankLoad();
-    if (mantis::databankMuted()) { mantis::audioSetMuted(true); muteIconAt = millis(); }
+    if (mantis::databankMuted()) { mantis::audioSetMuted(true); bootMuted = true; }
     mantis::sfxMoment(mantis::MOMENT_INTRO);
     hx::heartbeat();
 }
@@ -208,7 +210,7 @@ void loop() {
 
     // ---------------- move ----------------
     float want = modal ? 0.f : helmSpeedWanted();
-    subSpeed += (want - subSpeed) * (1.f - expf(-dt / 1.1f));
+    subSpeed += (want - subSpeed) * (1.f - expf(-dt / SPEED_TAU));
     float yaw = helmYaw(), pitch = helmPitch();
     float cp = cosf(pitch);
     float vx = cosf(yaw) * cp * subSpeed, vy = sinf(yaw) * cp * subSpeed, vz = sinf(pitch) * subSpeed;
@@ -244,6 +246,10 @@ void loop() {
         lastBiome = sc.biome;
     }
     if (t > 3.f && t < 3.1f && !bannerText) { bannerText = biomeName(sc.biome); bannerT = 5.f; }
+    if (t > 8.5f && t < 8.6f) {
+        if (!audioRunning()) message("SOUND FAILED TO START", 5.f);
+        else if (bootMuted && audioMuted()) message("SOUND OFF - HOLD THE SCREEN TO TURN ON", 5.f);
+    }
     critterSoundT -= dt;
     if (critterSoundT <= 0.f) {
         critterSoundT = 5.f + (esp_random() % 1000) * 0.008f;

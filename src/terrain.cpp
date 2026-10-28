@@ -12,6 +12,8 @@ static uint8_t* s_m = nullptr;
 static int s_ox = 0, s_oy = 0;      // valid window origin (cells)
 static float s_px = 0.f, s_py = 0.f, s_D = 0.f;
 static uint32_t s_gen = 1;
+static int s_jobAxis = -1, s_jobLine = 0, s_jobPos = TG_N;      // axis 0: a column at ix = line; 1: a row at iy = line
+
 
 static inline float clampf(float v, float a, float b) { return v < a ? a : (v > b ? b : v); }
 static inline float smoothstep(float a, float b, float x) { float t = clampf((x - a) / (b - a), 0.f, 1.f); return t * t * (3.f - 2.f * t); }
@@ -146,27 +148,42 @@ void terrainInit(float px, float py, float D) {
     s_oy = (int)floorf(py / TG_CELL) - TG_N / 2;
     for (int j = 0; j < TG_N; j++)
         for (int i = 0; i < TG_N; i++) dreamCell(s_ox + i, s_oy + j);
+    s_jobPos = TG_N;
     s_gen++;
 }
+
+// The window moves a row or a column at a time, but its new cells are dreamt a few dozen per frame, so the
+// work is spread out instead of landing in one frame (a hitch every couple of metres). The new cells sit at the
+// far edge, 128 m out, beyond the haze and beyond anything that asks about the seabed.
+constexpr int CELLS_PER_FRAME = 56;
 
 void terrainUpdate(float px, float py, float D) {
     s_px = px; s_py = py; s_D = D;
     int wx = (int)floorf(px / TG_CELL) - TG_N / 2, wy = (int)floorf(py / TG_CELL) - TG_N / 2;
-    int budget = 3;                                         // rows/columns per frame; the far edge is deep in the haze
-    while (budget > 0 && (s_ox != wx || s_oy != wy)) {
-        if (s_ox < wx) { s_ox++; int ix = s_ox + TG_N - 1; for (int j = 0; j < TG_N; j++) dreamCell(ix, s_oy + j); }
-        else if (s_ox > wx) { s_ox--; int ix = s_ox; for (int j = 0; j < TG_N; j++) dreamCell(ix, s_oy + j); }
-        if (s_oy < wy) { s_oy++; int iy = s_oy + TG_N - 1; for (int i = 0; i < TG_N; i++) dreamCell(s_ox + i, iy); }
-        else if (s_oy > wy) { s_oy--; int iy = s_oy; for (int i = 0; i < TG_N; i++) dreamCell(s_ox + i, iy); }
-        budget--;
-        s_gen++;
+    int budget = CELLS_PER_FRAME;
+    while (budget > 0) {
+        if (s_jobPos >= TG_N) {                                  // start the next row or column, if the window has to move
+            if (s_ox < wx) { s_ox++; s_jobAxis = 0; s_jobLine = s_ox + TG_N - 1; }
+            else if (s_ox > wx) { s_ox--; s_jobAxis = 0; s_jobLine = s_ox; }
+            else if (s_oy < wy) { s_oy++; s_jobAxis = 1; s_jobLine = s_oy + TG_N - 1; }
+            else if (s_oy > wy) { s_oy--; s_jobAxis = 1; s_jobLine = s_oy; }
+            else break;
+            s_jobPos = 0;
+            s_gen++;
+        }
+        int n = TG_N - s_jobPos < budget ? TG_N - s_jobPos : budget;
+        for (int k = 0; k < n; k++, s_jobPos++) {
+            if (s_jobAxis == 0) dreamCell(s_jobLine, s_oy + s_jobPos);
+            else dreamCell(s_ox + s_jobPos, s_jobLine);
+        }
+        budget -= n;
     }
 }
 
 float terrainFloor(float x, float y) {
     float gx = x / TG_CELL, gy = y / TG_CELL;
     int ix = (int)floorf(gx), iy = (int)floorf(gy);
-    if (!s_h || ix < s_ox || iy < s_oy || ix + 1 >= s_ox + TG_N || iy + 1 >= s_oy + TG_N) {
+    if (!s_h || ix < s_ox + 2 || iy < s_oy + 2 || ix + 3 >= s_ox + TG_N || iy + 3 >= s_oy + TG_N) {
         float r = sqrtf((x - s_px) * (x - s_px) + (y - s_py) * (y - s_py));
         return terrainShape(x, y, s_D + r, nullptr);
     }

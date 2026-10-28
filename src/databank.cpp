@@ -94,10 +94,9 @@ bool databankAdd(uint8_t sp) {
     return true;
 }
 int databankCount() { int n = 0; for (int i = 0; i < SPECIES_N; i++) n += (s_bits >> i) & 1u; return n; }
-void databankNoteDepth(float d) {
-    if (d > s_deep) s_deep = d;
-    if (s_deep > s_savedDeep + 25.f) save();                       // flash writes pause both cores: only now and then
-}
+// Flash writes pause both cores for tens of milliseconds, so the deepest depth is only kept in memory here and
+// written along with something else (a scan, the mute switch) or when a card is open (the helm is waiting anyway).
+void databankNoteDepth(float d) { if (d > s_deep) s_deep = d; }
 float databankDeepest() { return s_deep; }
 bool databankMuted() { return s_muted; }
 void databankSetMuted(bool m) { s_muted = m; save(); }
@@ -144,6 +143,7 @@ void cardOpen(uint8_t kind, uint8_t arg, bool fresh) {
     const uint16_t BG = rgb565(6, 18, 26), EDGE = rgb565(70, 190, 190), TXT = rgb565(200, 236, 232), DIM = rgb565(70, 110, 120), AMB = rgb565(255, 196, 90);
     char b[64];
     s_card = kind;
+    if (kind != CARD_SCAN && (s_deep > s_savedDeep + 1.f)) save();
     if (kind == CARD_SCAN) {
         frame(o, 18, 150, 284, 78, BG, fresh ? AMB : EDGE);
         uiText(o, OW, OH, 30, 160, speciesName(arg), fresh ? AMB : TXT, 2);

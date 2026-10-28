@@ -13,21 +13,28 @@ floodlights and the things that make their own.
 * **Local**: `pio run -e m5stack-core2 -t upload`.
 * **Browser**: open the GitHub Pages site in Chrome / Edge and click Install (esp-web-tools).
 
-## Controls (SpaceMantis's, fitted to a submarine)
+## Controls
+
+Hold the Core2 comfortably when it starts: that pose is neutral (B re-takes it any time).
 
 | Input | Does |
 |---|---|
-| **Tilt** | aims the nose, relative to the pose you hold at the start: tip the top away to dive, toward you to climb, lean to turn. Tilt sets the *rate*, with a submarine's weight, so a resting hand holds course |
-| **Slide** on the screen | steer directly (yaw and pitch, the view moves with your finger) |
-| **Throttle** | the slider on the right edge. Soft detent at cruise (5 m/s); bottom is all stop, top is flank (10 m/s) |
-| **Tap** | scan the creature (or coral, sponge, vent, crystal...) under your finger: hold it in view while the brackets close |
-| **Long press** | sound off / on (remembered) |
-| **A** / hold A | sonar ping (the echo is heard and felt; contacts are bracketed) / the chart |
-| **B** / hold B | level off and re-centre the tilt pose / floodlights on-off (otherwise they come on by themselves as the light goes) |
-| **C** / hold C | throttle to cruise / the databank |
+| **Tilt** top away / toward you | nose down (dive) / nose up (climb) |
+| **Tilt** left / right | turn left / right. Tilt sets the *rate*, with a submarine's weight; a resting hand holds course |
+| **Slide** a finger on the screen | steer directly: yaw and pitch follow your finger |
+| **Throttle slider** (right edge) | drag up / down. Soft click at cruise (5 m/s); bottom all stop, top flank (10 m/s) |
+| **Tap** something | scan it (creature, coral, sponge, vent, crystal, glyph stone...): keep it in view while the brackets close |
+| **Long press** the screen (1 s, still) | sound off / on (remembered across power-off) |
+| **A** | sonar ping: the echo is heard and felt; creatures it finds are bracketed |
+| **Hold A** | the chart: place, zone, depth, deepest, distance, heading, which way the sea is taking you |
+| **B** | level off, and re-take the neutral tilt pose |
+| **Hold B** | floodlights on / off (otherwise they come on by themselves as the light goes) |
+| **C** | throttle to cruise |
+| **Hold C** | the databank: everything you've scanned |
+| Any button or a tap | closes a card (a scan card also closes by itself) |
 
 The sub meets the seabed: a gentle slope lifts you over it, a wall stops you with a clank in your hands. The
-surface and the ice shelf are ceilings.
+surface and the ice shelf are ceilings. Handling constants are at the top of `src/helm.cpp`.
 
 ## How the dream works
 
@@ -80,6 +87,7 @@ The real firmware (`main.cpp` included) builds on a desktop compiler against `to
 * `tools/host/run.sh` — static RAM budget, then the soak: a bot pilot flies 3 seeds × 10 minutes through the
   real loop. Fails on NaN, ending up inside the seabed or above the surface, getting stuck, or if the depth
   director never takes it to the midnight zone. Prints host ms/frame.
+* `tools/host/listen.sh` — a 70 s listening tour through the real sound engine → `snaps/tour.mp3`.
 * `tools/host/tests.sh [audio]` — every biome with its creatures, plus the cards → `snaps/sheet.png`
   (and listening previews `snaps/audio_*.wav`). `PERF=1` prints ms/frame per scene.
 
