@@ -1,3 +1,6 @@
+// Size over speed here: this code runs per object or per frame, not per pixel or per sample, and the app shares
+// flash with others (see README, "Footprint").
+#pragma GCC optimize("Os")
 // Mantis Seadiver: a submarine through an ocean that dreams itself, on an M5Stack Core2.
 // MantisPlanet's dream (the world is sampled from where you're going, nothing behind you is kept), taken
 // underwater, flown with SpaceMantis's controls. Sound and the LCD push run on core 0; everything else here.
@@ -247,8 +250,7 @@ void loop() {
     }
     if (t > 3.f && t < 3.1f && !bannerText) { bannerText = biomeName(sc.biome); bannerT = 5.f; }
     if (t > 8.5f && t < 8.6f) {
-        if (!audioRunning()) message("SOUND FAILED TO START", 5.f);
-        else if (bootMuted && audioMuted()) message("SOUND OFF - HOLD THE SCREEN TO TURN ON", 5.f);
+        if (bootMuted && audioMuted()) message("SOUND OFF - HOLD THE SCREEN TO TURN ON", 5.f);
     }
     critterSoundT -= dt;
     if (critterSoundT <= 0.f) {

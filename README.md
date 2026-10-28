@@ -34,7 +34,34 @@ Hold the Core2 comfortably when it starts: that pose is neutral (B re-takes it a
 | Any button or a tap | closes a card (a scan card also closes by itself) |
 
 The sub meets the seabed: a gentle slope lifts you over it, a wall stops you with a clank in your hands. The
-surface and the ice shelf are ceilings. Handling constants are at the top of `src/helm.cpp`.
+surface and the ice shelf are ceilings.
+
+## Tuning
+
+Every knob is a named constant with a comment, in one block at the top of its file:
+
+| What | Where | Constants |
+|---|---|---|
+| Tilt feel | `src/helm.cpp` | `PITCH_DEADZONE_DEG`, `PITCH_FULL_DEG`, `YAW_DEADZONE_DEG`, `YAW_FULL_DEG`, `STICK_EXPO`, `INVERT_PITCH`, `INVERT_YAW` |
+| Response and weight | `src/helm.cpp` | `TURN_RATE`, `PITCH_RATE`, `ATTITUDE_MASS`, `STICK_SMOOTH`, `MAX_PITCH`, `LEVEL_TIME` |
+| Slide and touch | `src/helm.cpp` | `SLIDE_YAW`, `SLIDE_PITCH`, `LONG_PRESS_MS`, `TAP_MS` |
+| Speed | `src/helm.h`, `src/main.cpp` | `CRUISE_MS`, `FLANK_MS`; `SPEED_TAU` |
+| How far the view tilts | `src/render.cpp` | `VIEW_PITCH_MAX` |
+| Every sound's level and pitch | `src/ocean.cpp` | `LVL_*`, `PITCH_*`, `BUBBLE_RATE` (render them with `tools/host/stems.sh`) |
+
+## Footprint
+
+The firmware shares flash with other apps under a launcher, so it's kept small:
+
+* Seadiver has no assets: every picture and sound is made live, so there's nothing to keep on the SD card. The
+  ESP32 can only run code from flash, so the SD card can't hold the program itself either.
+* Code that runs per object or per frame is compiled for size (`#pragma GCC optimize("Os")` at the top of those
+  files); the per-pixel and per-sample paths (seabed, water, audio, display) stay compiled for speed. That cut our
+  own code by about a quarter for ~3% on the object pass.
+* Most of the binary is the Arduino framework and the M5 libraries (drivers for every M5 board, autodetected at
+  start), which every app on the launcher carries. Newer M5GFX releases can be told the board up front and skip
+  that; they're after the 0.2.33 we're pinned to (MantisPlanet's working version), so that's a later step.
+
 
 ## How the dream works
 
@@ -87,6 +114,9 @@ The real firmware (`main.cpp` included) builds on a desktop compiler against `to
 * `tools/host/run.sh` — static RAM budget, then the soak: a bot pilot flies 3 seeds × 10 minutes through the
   real loop. Fails on NaN, ending up inside the seabed or above the surface, getting stuck, or if the depth
   director never takes it to the midnight zone. Prints host ms/frame.
+* `tools/host/tilt.cpp` (built and run by run.sh) — climbing and diving from upright, reclined and flat holds.
+* `tools/host/stress.cpp` (run.sh) — the camera right up against every object and creature; flags slow frames.
+* `tools/host/stems.sh` — every sound soloed (33 stems + INDEX.md + spectrograms) → `snaps/stems/`.
 * `tools/host/listen.sh` — a 70 s listening tour through the real sound engine → `snaps/tour.mp3`.
 * `tools/host/tests.sh [audio]` — every biome with its creatures, plus the cards → `snaps/sheet.png`
   (and listening previews `snaps/audio_*.wav`). `PERF=1` prints ms/frame per scene.

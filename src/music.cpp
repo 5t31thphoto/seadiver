@@ -169,6 +169,7 @@ static float s_tideT = 0.f, s_tideLen = 40.f;
 // Foreground budget: at most two voices on stage, chosen as pairs that sit well together.
 enum : uint8_t { V_DUB = 1, V_HAT = 2, V_BASS = 4, V_PLUCK = 8 };
 static uint8_t s_stage = V_DUB;
+static uint8_t s_forced = 0;                                    // desktop tools only: these voices, always
 static const uint8_t SOLO[3] = {V_DUB, V_PLUCK, V_DUB};
 static const uint8_t DUO[5] = {V_DUB | V_HAT, V_DUB | V_PLUCK, V_HAT | V_BASS, V_DUB | V_BASS, V_PLUCK | V_HAT};
 
@@ -177,6 +178,7 @@ static void castStage(float E) {
     if (s_mood == MOOD_NIGHT) s_stage &= (uint8_t)~(V_HAT | V_BASS);       // night keeps it hushed
     if (s_mood == MOOD_STORM) s_stage = 0;
     if (!s_stage) s_stage = V_DUB;
+    if (s_forced) s_stage = s_forced;
 }
 
 // one 16th note of the score
@@ -326,21 +328,21 @@ void musicBlock(Bus& b, int n, const Scene& s) {
                 s_dr[k] += dsp::inc(drHz[k]);
                 d += dsp::sine(s_dr[k]) * (0.6f + 0.4f * dsp::sine(s_drAm[k])) * (k == 2 ? 0.5f : 1.f);
             }
-            d *= g_drone * 0.05f;
+            d *= g_drone * 0.05f * soloGain(TAG_M_DRONE);
             dry += d * 0.6f; rev += d * 0.7f;
         }
         // pad
         if (g_pad > 0.002f) {
             float p = 0.f;
             for (int v = 0; v < 4; v++) p += s_pad[v].a.tick() + s_pad[v].b.tick();
-            p = s_padF.lp(p) * g_pad * 0.028f * padBreath;
+            p = s_padF.lp(p) * g_pad * 0.028f * padBreath * soloGain(TAG_M_PAD);
             dry += p * 0.5f; rev += p * 0.75f; dly += p * 0.08f;
         }
         // dub stab
         if (s_stab.env > 0.0005f) {
             float x = 0.f;
             for (int k = 0; k < 4; k++) x += s_stab.o[k].tick();
-            x = s_stab.f.bp(x) * s_stab.env * 0.11f;
+            x = s_stab.f.bp(x) * s_stab.env * 0.11f * soloGain(TAG_M_STAB);
             s_stab.env *= 0.99955f;
             dry += x * 0.3f; dly += x * 0.95f; rev += x * 0.3f;
         }
@@ -349,7 +351,7 @@ void musicBlock(Bus& b, int n, const Scene& s) {
             float w = rng.bi();
             s_hatLP += 0.45f * (w - s_hatLP);                 // a darker shaker: noise between ~4 and 9 kHz
             s_hatBP += 0.5f * ((w - s_hatLP) - s_hatBP);
-            float h = s_hatBP * s_hatEnv * 0.045f;
+            float h = s_hatBP * s_hatEnv * 0.045f * soloGain(TAG_M_SHAKER);
             s_hatEnv *= s_hatDec;
             dry += h * 0.6f; dly += h * 0.12f; rev += h * 0.1f;
         }
@@ -357,14 +359,14 @@ void musicBlock(Bus& b, int n, const Scene& s) {
         if (s_kickEnv > 0.001f) {
             s_kickPh += dsp::inc(s_kickHz);
             s_kickHz = fmaxf(52.f, s_kickHz * 0.9993f);
-            float k = dsp::sine(s_kickPh) * s_kickEnv * 0.25f + rng.bi() * s_clickEnv * 0.08f;
+            float k = (dsp::sine(s_kickPh) * s_kickEnv * 0.25f + rng.bi() * s_clickEnv * 0.08f) * soloGain(TAG_M_KICK);
             s_kickEnv *= 0.9988f;
             s_clickEnv *= 0.93f;
             dry += k;
         }
         // bass
         if (s_bassEnv > 0.001f) {
-            float x = dsp::softclip(s_bassF.lp(s_bassO.tick()) * 2.2f) * s_bassEnv * 0.07f;
+            float x = dsp::softclip(s_bassF.lp(s_bassO.tick()) * 2.2f) * s_bassEnv * 0.07f * soloGain(TAG_M_BASS);
             s_bassEnv *= 0.9996f;
             dry += x * 0.85f; dly += x * 0.05f;
         }
@@ -375,7 +377,7 @@ void musicBlock(Bus& b, int n, const Scene& s) {
             float y = (k.buf[j] + k.buf[j1]) * k.damp;
             k.buf[j] = y;
             k.pos = j1;
-            float x = y * k.amp * 0.22f;
+            float x = y * k.amp * 0.22f * soloGain(TAG_M_PLUCK);
             dry += x * 0.35f; dly += x * 0.65f; rev += x * 0.5f;
             if (fabsf(y) < 0.0004f && k.pos == 0) k.on = false;
         }
@@ -384,7 +386,7 @@ void musicBlock(Bus& b, int n, const Scene& s) {
             if (!bl.on) continue;
             float x = 0.f;
             for (int k = 0; k < 3; k++) { bl.ph[k] += bl.dph[k]; x += dsp::sine(bl.ph[k]) * bl.env[k]; bl.env[k] *= bl.dec[k]; }
-            x *= 0.12f;
+            x *= 0.12f * soloGain(TAG_M_BELL);
             dry += x * 0.4f; rev += x * 0.8f; dly += x * 0.15f;
             if (bl.env[0] < 0.0005f) bl.on = false;
         }
@@ -394,7 +396,7 @@ void musicBlock(Bus& b, int n, const Scene& s) {
             float vib = 1.f + 0.004f * dsp::sine(s_vib);
             float c = 0.f;
             for (int k = 0; k < 3; k++) { s_choir[k].dph = dsp::inc(chHz[k] * vib); c += s_choir[k].tick(); }
-            c = (s_f1.bp(c) + 0.7f * s_f2.bp(c)) * g_choir * 0.05f;
+            c = (s_f1.bp(c) + 0.7f * s_f2.bp(c)) * g_choir * 0.022f * soloGain(TAG_M_CHOIR);   // under the sea it rose over everything at 0.05 (MantisPlanet's level)
             dry += c * 0.3f; rev += c * 0.9f;
         }
         b.dry[i] += dry;
@@ -402,6 +404,12 @@ void musicBlock(Bus& b, int n, const Scene& s) {
         b.dly[i] += dly;
     }
 }
+
+#ifdef HOST
+// desktop tools only: hold a full-energy passage with the given voices, so each can be heard (tools/host/stems.sh)
+void musicDebugPassage(uint8_t stageMask) { s_tide = TIDE_SONG; s_tideT = 0.f; s_tideLen = 1e9f; s_stage = stageMask; s_forced = stageMask; s_energy = 1.f; }
+uint8_t musicDebugAllVoices() { return (uint8_t)(V_DUB | V_HAT | V_BASS | V_PLUCK); }
+#endif
 
 }
 }

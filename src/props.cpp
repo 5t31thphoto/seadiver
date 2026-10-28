@@ -1,3 +1,6 @@
+// Size over speed here: this code runs per object or per frame, not per pixel or per sample, and the app shares
+// flash with others (see README, "Footprint").
+#pragma GCC optimize("Os")
 // What grows, stands and swims: kelp, grass, corals, sponges, rocks, pillars, vents, ruins, wrecks, ice,
 // crystals, bones; and every creature and school. All procedural, so each scales smoothly with distance and
 // dissolves into the haze through ordered dither (MantisPlanet's re-dreamt things fade in the same way).
@@ -117,11 +120,11 @@ static void drawCoral(float sx, float by, float s, float a, uint8_t var, uint32_
         }
         case 1: {   // a brain dome, grooved
             float rx = R * 0.62f, ry = R * 0.48f;
-            for (int y = (int)(by - ry); y <= (int)by; y++) {
+            for (int y = clampi((int)(by - ry), 0, H - 1); y <= clampi((int)by, 0, H - 1); y++) {
                 float v = (by - y) / ry;
                 if (v > 1.f) continue;
                 float hw = rx * sqrtf(1.f - v * v);
-                for (int x = (int)(sx - hw); x <= (int)(sx + hw); x++) {
+                for (int x = clampi((int)(sx - hw), 0, W - 1); x <= clampi((int)(sx + hw), 0, W - 1); x++) {
                     float u = (x - sx) / rx;
                     float gro = fsin((u * 7.f + fsin(v * 9.f + Hf(seed, 3) * 6.f) * 0.7f) * 2.2f);
                     int sh = v > 0.6f ? 3 : v > 0.25f ? 2 : 1;
@@ -157,7 +160,7 @@ static void drawCoral(float sx, float by, float s, float a, uint8_t var, uint32_
             int n = 3 + (int)(Hf(seed, 5) * 3.f);
             for (int i = 0; i < n; i++) {
                 float ox = (Hf(seed, 60 + i) - 0.5f) * R * 0.7f, h = R * (0.5f + 0.5f * Hf(seed, 70 + i)), w = fmaxf(1.f, R * 0.11f);
-                for (int y = (int)(by - h); y <= (int)by; y++) hspan((int)(sx + ox - w), (int)(sx + ox + w), y, C(y < by - h * 0.7f ? 2 : 1));
+                for (int y = clampi((int)(by - h), -1, H); y <= clampi((int)by, -1, H); y++) hspan((int)(sx + ox - w), (int)(sx + ox + w), y, C(y < by - h * 0.7f ? 2 : 1));
                 hspan((int)(sx + ox - w), (int)(sx + ox + w), (int)(by - h), C(3));
                 if (w > 2.f) hspan((int)(sx + ox - w + 1), (int)(sx + ox + w - 1), (int)(by - h) + 1, C(0));
             }
@@ -208,7 +211,7 @@ static void drawSponge(float sx, float by, float s, float a, uint8_t var, uint32
     }
     int hue = 1 + (int)(H32(seed, 3) & 1);                            // a barrel: orange or violet
     float h = R * 0.9f;
-    for (int y = (int)(by - h); y <= (int)by; y++) {
+    for (int y = clampi((int)(by - h), -1, H); y <= clampi((int)by, -1, H); y++) {
         float u = (by - y) / h;
         float w = R * (0.32f + 0.18f * u);
         hspan((int)(sx - w), (int)(sx + w), y, coralI(hue, (y & 3) == 0 ? 0 : 1));
@@ -225,16 +228,23 @@ static void rockBody(float cx, float cy, float Rx, float Ry, uint32_t seed, bool
         fpx[i] = Hf(seed, i * 3) * 2.f - 1.f; fpy[i] = Hf(seed, i * 3 + 1) * 2.f - 1.f;
         fsh[i] = 2.f + Hf(seed, i * 3 + 2) * 2.5f - fpy[i] * 1.8f;
     }
-    int y0 = (int)(cy - Ry), y1 = (int)(cy + Ry);
+    // only the part on screen; close up, facets are found per 2x2 block (they're tens of pixels wide by then)
+    int y0 = clampi((int)(cy - Ry), 0, H - 1), y1 = clampi((int)(cy + Ry), 0, H - 1);
+    int st = Rx > 40.f ? 2 : 1;
     for (int y = y0; y <= y1; y++) {
         float v = (y + 0.5f - cy) / Ry;
         if (v * v >= 1.f) continue;
         float lump = 1.f + 0.08f * fsin(v * 7.f + Hf(seed, 40) * 6.f);
         float hw = Rx * sqrtf(1.f - v * v) * lump;
-        for (int x = (int)(cx - hw); x <= (int)(cx + hw); x++) {
+        int xa = clampi((int)(cx - hw), 0, W - 1), xb = clampi((int)(cx + hw), 0, W - 1);
+        int best = 0;
+        for (int x = xa; x <= xb; x++) {
             float u = (x + 0.5f - cx) / Rx;
-            int best = 0; float bd = 1e9f;
-            for (int i = 0; i < 7; i++) { float dx = u - fpx[i], dy = v - fpy[i]; float d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
+            if (st == 1 || ((x - xa) & 1) == 0) {
+                float bd = 1e9f;
+                float vv = st == 2 ? (((y & ~1) + 1.f) - cy) / Ry : v;
+                for (int i = 0; i < 7; i++) { float dx = u - fpx[i], dy = vv - fpy[i]; float d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
+            }
             float sh = fsh[best];
             if (v < -0.6f) sh += 1.5f;                                  // light from above
             if (u * u + v * v > 0.8f) sh -= 1.f;
@@ -254,12 +264,12 @@ static void drawRock(float sx, float by, float s, float a, uint32_t seed) {
 static void drawPillar(float sx, float by, float s, float a, float b, uint32_t seed) {
     float h = b * s, R = a * s;
     float top = by - h;
-    int ya = (int)fmaxf(top, -1.f), yb = (int)by;
+    int ya = (int)fmaxf(top, -1.f), yb = (int)fminf(by, (float)H);
     for (int y = ya; y <= yb; y++) {
         float u = (by - y) / h;
         float w = R * (1.f - 0.4f * u + 0.12f * fsin(u * 11.f + Hf(seed, 1) * 6.f) + 0.08f * fsin(u * 29.f));
         float bands = fsin(u * 26.f + Hf(seed, 2) * 6.f);
-        for (int x = (int)(sx - w); x <= (int)(sx + w); x++) {
+        for (int x = clampi((int)(sx - w), 0, W - 1); x <= clampi((int)(sx + w), 0, W - 1); x++) {
             float q = (x - sx) / w;
             float sh = 3.5f - fabsf(q) * 2.5f + q * 0.8f + bands * 0.6f + (u > 0.96f ? 2.f : 0.f);
             put(x, y, stoneI(band(sh, x, y), s_far));
@@ -276,7 +286,7 @@ static void drawBasalt(float sx, float by, float s, float a, float b, uint32_t s
         float ox = (i - (n - 1) * 0.5f) * w * 1.02f;
         float h = b * s * (0.45f + 0.55f * Hf(seed, 10 + i));
         float x0 = sx + ox - w * 0.5f, x1 = sx + ox + w * 0.5f;
-        for (int y = (int)(by - h); y <= (int)by; y++) {
+        for (int y = clampi((int)(by - h), -1, H); y <= clampi((int)by, -1, H); y++) {
             hspan((int)x0, (int)(sx + ox), y, (uint8_t)(R_ROCK + (s_far ? 16 : 0) + 1));
             hspan((int)(sx + ox) + 1, (int)x1, y, (uint8_t)(R_ROCK + (s_far ? 16 : 0) + 3));
         }
@@ -286,10 +296,10 @@ static void drawBasalt(float sx, float by, float s, float a, float b, uint32_t s
 
 static void drawVent(float sx, float by, float s, float a, uint8_t var, uint32_t seed) {
     float h = a * s, R = 0.55f * s;
-    for (int y = (int)(by - h); y <= (int)by; y++) {
+    for (int y = clampi((int)(by - h), -1, H); y <= clampi((int)by, -1, H); y++) {
         float u = (by - y) / h;
         float w = R * (1.f - 0.45f * u) * (1.f + 0.25f * fsin(u * 17.f + Hf(seed, 1) * 6.f));
-        for (int x = (int)(sx - w); x <= (int)(sx + w); x++) {
+        for (int x = clampi((int)(sx - w), 0, W - 1); x <= clampi((int)(sx + w), 0, W - 1); x++) {
             float q = (x - sx) / fmaxf(w, 0.5f);
             int sh = (int)(1.5f + q * 0.8f + fsin(u * 40.f) * 0.6f);
             put(x, y, var ? (uint8_t)(R_ROCK + clampi(sh, 0, 3)) : stoneI(sh - 1, s_far));
@@ -327,8 +337,8 @@ static void drawVent(float sx, float by, float s, float a, uint8_t var, uint32_t
 
 static void column(float x, float by, float s, float h, float w, uint32_t seed, bool broken) {
     float top = by - h;
-    for (int xx = (int)(x - w); xx <= (int)(x + w); xx++)
-        for (int y = (int)top + (broken ? (int)(Hf(seed, xx & 31) * w * 0.9f) : 0); y <= (int)by; y++) {
+    for (int xx = clampi((int)(x - w), 0, W - 1); xx <= clampi((int)(x + w), 0, W - 1); xx++)
+        for (int y = clampi((int)top + (broken ? (int)(Hf(seed, xx & 31) * w * 0.9f) : 0), -1, H); y <= clampi((int)by, -1, H); y++) {
             float q = (xx - x) / w;
             float sh = 3.5f - fabsf(q) * 2.f + q * 0.7f;
             if (w > 3.f && ((xx - (int)(x - w)) % 3) == 0) sh -= 1.f;    // fluting
@@ -350,23 +360,32 @@ static void drawRuin(float sx, float by, float s, float a, float b, uint8_t var,
         case 2: column(sx - w * 0.5f, by, s, h, 0.35f * s, seed, false); column(sx + w * 0.5f, by, s, h, 0.35f * s, seed + 1, false);
                 for (int k = 0; k < (int)fmaxf(2.f, 0.6f * s); k++) hspan((int)(sx - w * 0.7f), (int)(sx + w * 0.7f), (int)(by - h - k), stoneI(k == 0 ? 6 : 3, s_far));
                 break;
-        case 3: {   // a wall with windows
-            for (int y = (int)(by - h); y <= (int)by; y++)
-                for (int x = (int)(sx - w * 0.5f); x <= (int)(sx + w * 0.5f); x++) {
-                    float u = (x - sx) / w + 0.5f, v = (by - y) / h;
-                    bool win = fmodf(u * 4.f, 1.f) > 0.35f && fmodf(u * 4.f, 1.f) < 0.65f && v > 0.35f && v < 0.75f;
-                    bool brick = ((y - (int)by) % (int)fmaxf(2.f, s * 0.5f)) == 0;
-                    int topEdge = (int)(Hf(seed, (int)(u * 10.f)) * h * 0.15f);
-                    if (by - y > h - topEdge) continue;
-                    put(x, y, win ? (uint8_t)(R_WATER + 1) : stoneI(brick ? 2 : 3 + (u > 0.5f), s_far));
+        case 3: {   // a wall with windows: what changes across it is worked out once per column
+            int xa = clampi((int)(sx - w * 0.5f), 0, W - 1), xb = clampi((int)(sx + w * 0.5f), 0, W - 1);
+            int ya = clampi((int)(by - h), -1, H), yb = clampi((int)by, -1, H);
+            int brickH = (int)fmaxf(2.f, s * 0.5f);
+            for (int x = xa; x <= xb; x++) {
+                float u = (x - sx) / w + 0.5f;
+                float fu = u * 4.f - floorf(u * 4.f);
+                bool winCol = fu > 0.35f && fu < 0.65f;
+                float topEdge = Hf(seed, (int)(u * 10.f)) * h * 0.15f;
+                int shade = 3 + (u > 0.5f);
+                for (int y = ya; y <= yb; y++) {
+                    float d = by - y;
+                    if (d > h - topEdge) continue;
+                    float v = d / h;
+                    bool win = winCol && v > 0.35f && v < 0.75f;
+                    bool brick = ((y - (int)by) % brickH) == 0;
+                    put(x, y, win ? (uint8_t)(R_WATER + 1) : stoneI(brick ? 2 : shade, s_far));
                 }
+            }
             break;
         }
         case 4: {   // a statue on a plinth
             float ph = h * 0.25f;
-            for (int y = (int)(by - ph); y <= (int)by; y++) hspan((int)(sx - 0.8f * s), (int)(sx + 0.8f * s), y, stoneI(2 + (y == (int)(by - ph)) * 3, s_far));
+            for (int y = clampi((int)(by - ph), -1, H); y <= clampi((int)by, -1, H); y++) hspan((int)(sx - 0.8f * s), (int)(sx + 0.8f * s), y, stoneI(2 + (y == (int)(by - ph)) * 3, s_far));
             float bodyB = by - ph, bodyT = by - h * 0.82f;
-            for (int y = (int)bodyT; y <= (int)bodyB; y++) { float u = (bodyB - y) / (bodyB - bodyT); float ww = s * (0.45f - 0.12f * u + 0.12f * (u < 0.3f)); hspan((int)(sx - ww), (int)(sx + ww), y, stoneI(3 + (int)(u * 2.f), s_far)); }
+            for (int y = clampi((int)bodyT, -1, H); y <= clampi((int)bodyB, -1, H); y++) { float u = (bodyB - y) / (bodyB - bodyT); float ww = s * (0.45f - 0.12f * u + 0.12f * (u < 0.3f)); hspan((int)(sx - ww), (int)(sx + ww), y, stoneI(3 + (int)(u * 2.f), s_far)); }
             splat((int)sx, (int)(by - h * 0.9f), (int)(0.25f * s), stoneI(5, s_far));
             thickLine(sx + 0.4f * s, bodyT + 0.3f * s, sx + 0.9f * s, by - h * 1.05f, fmaxf(1.f, 0.12f * s), stoneI(4, s_far));   // a raised arm, a trident
             line((int)(sx + 0.9f * s), (int)(by - h * 1.05f), (int)(sx + 0.9f * s), (int)(by - h * 1.15f), stoneI(6, s_far));
@@ -375,8 +394,8 @@ static void drawRuin(float sx, float by, float s, float a, float b, uint8_t var,
         default: {  // a temple front: steps, a colonnade, a pediment
             int cols = 5;
             float colH = h * 0.7f, stepH = h * 0.12f;
-            for (int k = 0; k < 3; k++) { float yy = by - k * stepH / 3.f; float ww = w * (0.6f - k * 0.03f); for (int y = (int)(yy - stepH / 3.f); y <= (int)yy; y++) hspan((int)(sx - ww), (int)(sx + ww), y, stoneI(3 + k, s_far)); }
-            for (int y = (int)(by - stepH - colH); y <= (int)(by - stepH); y++) hspan((int)(sx - w * 0.5f), (int)(sx + w * 0.5f), y, (uint8_t)(R_WATER + 1));
+            for (int k = 0; k < 3; k++) { float yy = by - k * stepH / 3.f; float ww = w * (0.6f - k * 0.03f); for (int y = clampi((int)(yy - stepH / 3.f), -1, H); y <= clampi((int)yy, -1, H); y++) hspan((int)(sx - ww), (int)(sx + ww), y, stoneI(3 + k, s_far)); }
+            for (int y = clampi((int)(by - stepH - colH), -1, H); y <= clampi((int)(by - stepH), -1, H); y++) hspan((int)(sx - w * 0.5f), (int)(sx + w * 0.5f), y, (uint8_t)(R_WATER + 1));
             for (int i = 0; i < cols; i++) column(sx - w * 0.45f + i * (w * 0.9f / (cols - 1)), by - stepH, s, colH, 0.35f * s, seed + i, i == 3 && Hf(seed, 5) < 0.5f);
             float pb = by - stepH - colH;
             fillTri(sx - w * 0.55f, pb, sx + w * 0.55f, pb, sx, pb - h * 0.2f, stoneI(3, s_far));
@@ -390,7 +409,7 @@ static void drawRuin(float sx, float by, float s, float a, float b, uint8_t var,
 
 static void drawMonolith(float sx, float by, float s, float a, float b, uint32_t seed) {
     float h = a * s, w = b * s * 0.5f;
-    for (int y = (int)(by - h); y <= (int)by; y++) {
+    for (int y = clampi((int)(by - h), -1, H); y <= clampi((int)by, -1, H); y++) {
         float u = (by - y) / h;
         float ww = w * (1.f - 0.15f * u);
         hspan((int)(sx - ww), (int)sx, y, stoneI(2, s_far));
@@ -426,11 +445,11 @@ static void drawWreck(float sx, float by, float s, float a, float b, uint8_t var
         }
         case 1: {   // a broken hull, portholes in a row
             float hh = h * 0.6f;
-            for (int y = (int)(by - hh); y <= (int)by; y++) {
+            for (int y = clampi((int)(by - hh), -1, H); y <= clampi((int)by, -1, H); y++) {
                 float v = (by - y) / hh;
                 float ww = w * 0.5f * sqrtf(fmaxf(0.f, 1.f - (1.f - v) * (1.f - v) * 0.6f));
                 int cut = (int)(Hf(seed, (int)(v * 8.f)) * w * 0.15f);
-                for (int x = (int)(sx - ww); x <= (int)(sx + ww) - cut; x++) {
+                for (int x = clampi((int)(sx - ww), 0, W - 1); x <= clampi((int)(sx + ww) - cut, 0, W - 1); x++) {
                     float q = (x - sx) / ww;
                     int sh = (int)(2.5f + v * 2.f - fabsf(q));
                     if (((x + y) & 7) == 0) sh--;                                // rust bloom
@@ -531,7 +550,7 @@ static void drawClam(float sx, float by, float s, float a, uint32_t seed) {
     float R = a * s;
     ellipse(sx, by - R * 0.3f, R * 0.8f, R * 0.35f, R_FAUNA + FA_LGREY);
     ellipse(sx, by - R * 0.42f, R * 0.68f, R * 0.14f, R_FAUNA2 + (H32(seed, 1) & 1 ? F2_BLUE : F2_CYAN));
-    for (int x = (int)(sx - R * 0.7f); x <= (int)(sx + R * 0.7f); x++) {
+    for (int x = clampi((int)(sx - R * 0.7f), 0, W - 1); x <= clampi((int)(sx + R * 0.7f), 0, W - 1); x++) {
         int z = ((x - (int)sx) / (int)fmaxf(1.f, R * 0.15f)) & 1;
         put(x, (int)(by - R * 0.42f - (z ? 1 : 0)), R_FAUNA + FA_WHITE);
         if ((x & 3) == 0) put(x, (int)(by - R * 0.45f), R_FAUNA2 + F2_CYAN);
@@ -680,7 +699,7 @@ static void drawCritter(const Critter& c, float sx, float sy, float s, float dir
                     }
                 }
                 float ga = g_alpha;
-                for (int y = (int)(jy - ry); y <= (int)jy; y++) {
+                for (int y = clampi((int)(jy - ry), -1, H); y <= clampi((int)jy, -1, H); y++) {
                     float v = (jy - y) / fmaxf(ry, 0.5f);
                     float hw = rx * sqrtf(fmaxf(0.f, 1.f - v * v));
                     g_alpha = ga * (v > 0.75f ? 1.f : 0.62f);                       // you can see through the bell
@@ -916,13 +935,18 @@ void drawProps() {
         const FieldObj& o = objs[it.idx];
         float sx, by, f;
         if (!proj(o.x, o.y, o.z, sx, by, f)) continue;
+        if (f < 0.45f) continue;                                         // the camera is inside it
         float s = F / f;
         float vz = o.z - g_cz;
         float d = sqrtf(it.d2 + vz * vz);
         float fog = fogOf(d);
         if (o.solid && sqrtf(it.d2) < o.radius + 0.6f) continue;               // you're inside its footprint
+        // the near plane: things fade out between 1.6 m and 0.9 m from the lens (a real camera's near clip; up close
+        // they'd be a screen of overdraw). Kelp and grass you swim through, so they stay.
+        float nearFade = 1.f;
+        if (o.type != OBJ_KELP && o.type != OBJ_GRASS) { if (f < 0.9f) continue; nearFade = clampf((f - 0.9f) / 0.7f, 0.f, 1.f); }
         float edge = clampf((FIELD_R - sqrtf(it.d2)) / 6.f, 0.f, 1.f);       // re-dreamt things fade in at the edge
-        g_alpha = (1.f - smoothstep(0.6f, 0.93f, fog)) * edge;
+        g_alpha = (1.f - smoothstep(0.6f, 0.93f, fog)) * edge * nearFade;
         if (g_alpha <= 0.04f) continue;
         g_zc = zcode(d);
         s_far = fog > 0.38f;

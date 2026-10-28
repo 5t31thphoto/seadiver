@@ -65,11 +65,6 @@ jobs:
       - name: Build firmware
         run: pio run -e m5stack-core2
 
-      - name: Show the versions that were used
-        run: |
-          pio --version
-          pio pkg list -e m5stack-core2
-
       - name: Stage website firmware
         run: |
           set -euo pipefail

@@ -8,6 +8,7 @@ static void settle(int frames) { for (int i = 0; i < frames; i++) frame(); }
 static void place(uint8_t biome, float tod, float alt, float yaw, float pitch, float D0 = 400.f) {
   g_force = SceneForce();
   distanceTravelled = D0;
+  journeyUpdate(D0, 0.f, 0.f, 10.f);               // catch the journey up first: crossing biomes re-picks the ones ahead
   journeyForce(D0, biome);
   journeyForce(biomeEnd(D0) + 1.f, biome);
   journeyForce(biomeStart(D0) - 1.f, biome);

@@ -1,3 +1,6 @@
+// Size over speed here: this code runs per object or per frame, not per pixel or per sample, and the app shares
+// flash with others (see README, "Footprint").
+#pragma GCC optimize("Os")
 #include "databank.h"
 #include "display.h"
 #include "ui.h"

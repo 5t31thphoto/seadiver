@@ -51,6 +51,9 @@ void sfxSonar(float delay, float strength) { post({EV_SONAR, 0, delay, strength}
 
 // ---------------- master bus ----------------
 static dsp::Reverb s_rev;
+#ifdef HOST
+namespace snd { int g_solo = -1; }
+#endif
 static dsp::DubDelay s_dly;
 static bool s_running = false;
 static Bus s_bus;

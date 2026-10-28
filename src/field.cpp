@@ -1,3 +1,6 @@
+// Size over speed here: this code runs per object or per frame, not per pixel or per sample, and the app shares
+// flash with others (see README, "Footprint").
+#pragma GCC optimize("Os")
 #include "field.h"
 #include "terrain.h"
 #include "universe.h"
@@ -461,5 +464,19 @@ void fieldDebugSchool(uint8_t kind, float yaw, float dist, bool bait) {
     }
 }
 void fieldDebugClear() { for (int i = 0; i < CRIT_N; i++) s_cr[i].on = false; for (int i = 0; i < SCHOOL_N; i++) s_sc[i].on = false; for (int k = 0; k < CR_KINDS; k++) s_next[k] = 999.f; s_schoolNext = 999.f; }
+}
+#endif
+
+#ifdef HOST
+namespace mantis {
+// desktop-only: one object of a kind, `dist` metres in front of you (stress tests)
+void fieldDebugObj(uint8_t type, uint8_t var, float yaw, float dist) {
+    for (int i = 0; i < FIELD_N; i++) { s_obj[i].type = OBJ_NONE; s_obj[i].solid = false; }
+    FieldObj& o = s_obj[0];
+    for (int tries = 0; tries < 400; tries++) { spawnObj(o, yaw, dist); if (o.type == type) break; }
+    o.type = type; o.var = var;
+    if (o.a <= 0.f) { o.a = 2.f; o.b = 2.f; }
+    o.x = s_px + cosf(yaw) * dist; o.y = s_py + sinf(yaw) * dist; o.z = terrainFloor(o.x, o.y); o.solid = false;
+}
 }
 #endif

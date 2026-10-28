@@ -1,3 +1,6 @@
+// Size over speed here: this code runs per object or per frame, not per pixel or per sample, and the app shares
+// flash with others (see README, "Footprint").
+#pragma GCC optimize("Os")
 #include "haptics.h"
 #include <M5Unified.h>
 #include <math.h>

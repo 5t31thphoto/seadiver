@@ -1,3 +1,6 @@
+// Size over speed here: this code runs per object or per frame, not per pixel or per sample, and the app shares
+// flash with others (see README, "Footprint").
+#pragma GCC optimize("Os")
 #include <stdlib.h>
 #include "helm.h"
 #include "haptics.h"
@@ -7,28 +10,37 @@
 namespace mantis {
 
 // ======================= TUNING: how she handles =======================
-// Tilt sets how fast she turns. Bigger rates = quicker; bigger "mass" = heavier, slower to start and stop.
-constexpr float TURN_RATE      = 1.10f;   // rad/s of yaw at full lean                (was 0.95)
-constexpr float PITCH_RATE     = 0.88f;   // rad/s of pitch at full tip               (was 0.75)
-constexpr float ATTITUDE_MASS  = 0.24f;   // seconds to answer the stick (the heavy feel; was 0.32)
-constexpr float STICK_SMOOTH   = 0.10f;   // seconds of smoothing on the raw tilt
-constexpr float DEADZONE_G     = 0.05f;   // tilt (in g) that does nothing, so a resting hand holds course
-constexpr float FULL_TILT_G    = 0.45f;   // tilt past the deadzone that counts as full stick
-constexpr float MAX_PITCH      = 1.20f;   // rad (about 69 degrees) nose up or down
-constexpr float LEVEL_TIME     = 0.35f;   // seconds for B to bring the nose level
+// Tilt is read as an angle from the pose you held at the start (or when you last pressed B), so it works the
+// same whether you hold the Core2 upright, reclined or flat.
+// Stick: past the deadzone, the tilt ramps to full stick at FULL_DEG (expo in between).
+constexpr float PITCH_DEADZONE_DEG = 3.f;     // tip less than this: nothing (a resting hand holds course)
+constexpr float PITCH_FULL_DEG     = 22.f;    // tip this far past the deadzone: full dive / climb
+constexpr float YAW_DEADZONE_DEG   = 3.f;
+constexpr float YAW_FULL_DEG       = 22.f;
+constexpr float STICK_EXPO         = 0.55f;   // 0 = linear, 1 = all expo (gentle near centre, sharp at the edge)
+constexpr bool  INVERT_PITCH       = false;   // true: tip the top away to climb (a flight-sim "pull back")
+constexpr bool  INVERT_YAW         = false;
+// Response: tilt sets how fast she turns. Bigger rates = quicker; bigger mass = heavier, slower to start and stop.
+constexpr float TURN_RATE      = 1.10f;       // rad/s of yaw at full stick
+constexpr float PITCH_RATE     = 0.95f;       // rad/s of pitch at full stick
+constexpr float ATTITUDE_MASS  = 0.24f;       // seconds to answer the stick (the heavy feel)
+constexpr float STICK_SMOOTH   = 0.08f;       // seconds of smoothing on the raw tilt
+constexpr float MAX_PITCH      = 1.35f;       // rad (about 77 degrees) nose up or down: steep enough for a drop-off
+constexpr float LEVEL_TIME     = 0.35f;       // seconds for B to bring the nose level
 // Slide on the screen: radians per panel pixel of finger travel.
 constexpr float SLIDE_YAW      = 0.0095f;
 constexpr float SLIDE_PITCH    = 0.011f;
 // Touch timings.
-constexpr uint32_t LONG_PRESS_MS = 1000;  // hold still this long for sound on/off
-constexpr uint32_t TAP_MS        = 450;   // shorter than this (and still) is a tap: scan
-// Speed (m/s) is CRUISE_MS / FLANK_MS in helm.h; how quickly she reaches it is SPEED_TAU in main.cpp.
+constexpr uint32_t LONG_PRESS_MS = 1000;      // hold still this long for sound on/off
+constexpr uint32_t TAP_MS        = 450;       // shorter than this (and still) is a tap: scan
+// Also: speed is CRUISE_MS / FLANK_MS in helm.h, how quickly she reaches it is SPEED_TAU in main.cpp, and how
+// far the view tilts with the nose is VIEW_PITCH_MAX in render.cpp.
 // =======================================================================
 
 static float s_yaw = 0.f, s_pitch = 0.f, s_throttle = 0.5f;
 static float s_rateYaw = 0.f, s_ratePitch = 0.f;
 static float s_tiltX = 0.f, s_tiltY = 0.f;
-static float s_neutralAx = 0.f, s_neutralAy = 0.f;
+static float s_neutralPitch = 0.f, s_neutralRoll = 0.f;     // radians
 static bool s_neutralValid = false;
 static int s_settle = 0;
 static float s_levelT = 0.f;
@@ -61,10 +73,18 @@ float helmSpeedWanted() {
     return s_throttle <= 0.5f ? CRUISE_MS * (s_throttle / 0.5f) : CRUISE_MS + (FLANK_MS - CRUISE_MS) * (s_throttle - 0.5f) * 2.f;
 }
 
+// The device's attitude from gravity: pitch is the tip about its horizontal axis (top away = +), roll the lean.
+// atan2 keeps both meaningful at any holding angle (raw accel.y is symmetric near upright: tipping either way
+// lowers it, which is why tipping back once read as another dive).
+static void attitudeFrom(float ax, float ay, float az, float& pitch, float& roll) {
+    pitch = atan2f(az, ay);
+    roll = atan2f(ax, sqrtf(ay * ay + az * az));
+}
 static void captureNeutral() {
     if (M5.Imu.update()) {
         auto d = M5.Imu.getImuData();
-        s_neutralAx = d.accel.x; s_neutralAy = d.accel.y; s_neutralValid = true;
+        attitudeFrom(d.accel.x, d.accel.y, d.accel.z, s_neutralPitch, s_neutralRoll);
+        s_neutralValid = true;
     }
 }
 
@@ -124,23 +144,28 @@ void helmUpdate(float dt, bool flying, HelmEvents& ev) {
         if (++s_settle > 8) captureNeutral();
     } else if (M5.Imu.update()) {
         auto d = M5.Imu.getImuData();
-        float ax = d.accel.x - s_neutralAx, ay = d.accel.y - s_neutralAy;
-        // soft deadzone + expo so a resting hand holds course
-        auto shape = [](float v) {
-            float a = fabsf(v);
-            if (a < DEADZONE_G) return 0.f;
-            a = clampf((a - DEADZONE_G) / FULL_TILT_G, 0.f, 1.4f);
-            return (v < 0.f ? -1.f : 1.f) * (a * 0.45f + a * a * 0.55f);
+        float p, r;
+        attitudeFrom(d.accel.x, d.accel.y, d.accel.z, p, r);
+        float dp = p - s_neutralPitch, dr = r - s_neutralRoll;
+        if (dp > 3.14159265f) dp -= 6.2831853f; else if (dp < -3.14159265f) dp += 6.2831853f;
+        // degrees -> stick: a deadzone, then expo up to full
+        auto shape = [](float rad, float dz, float full) {
+            float a = fabsf(rad) * 57.29578f;
+            if (a < dz) return 0.f;
+            float u = clampf((a - dz) / full, 0.f, 1.25f);
+            return (rad < 0.f ? -1.f : 1.f) * (u * (1.f - STICK_EXPO) + u * u * STICK_EXPO);
         };
         float k0 = 1.f - expf(-dt / STICK_SMOOTH);
-        s_tiltY += (shape(ay) - s_tiltY) * k0;      // pitch stick
-        s_tiltX += (shape(ax) - s_tiltX) * k0;      // yaw stick
+        float sp = shape(dp, PITCH_DEADZONE_DEG, PITCH_FULL_DEG) * (INVERT_PITCH ? -1.f : 1.f);   // + = top away = dive
+        float sy = shape(dr, YAW_DEADZONE_DEG, YAW_FULL_DEG) * (INVERT_YAW ? -1.f : 1.f);
+        s_tiltY += (sp - s_tiltY) * k0;
+        s_tiltX += (sy - s_tiltX) * k0;
     }
     if (!flying) { s_rateYaw = s_ratePitch = 0.f; return; }
     // attitude: tilt sets the rates, with a submarine's mass
     float k = 1.f - expf(-dt / ATTITUDE_MASS);
     s_rateYaw += (-s_tiltX * TURN_RATE - s_rateYaw) * k;              // lean right: turn right (SpaceMantis's sense)
-    s_ratePitch += (s_tiltY * PITCH_RATE - s_ratePitch) * k;           // tip the top away: nose down
+    s_ratePitch += (-s_tiltY * PITCH_RATE - s_ratePitch) * k;          // tip the top away: nose down (pitch is nose-up +)
     s_yaw += s_rateYaw * dt;
     s_pitch += s_ratePitch * dt;
     if (s_levelT > 0.f) {                                         // B: the trim brings her level

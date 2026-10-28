@@ -23,6 +23,10 @@ namespace mantis {
 HudInfo g_hud;
 namespace rr {
 
+// TUNING: how far the view tilts with the nose (rad). Past ~1.1 the sheared projection starts to stretch.
+constexpr float VIEW_PITCH_MAX = 1.05f;    // ~60 degrees: you can look down a drop-off (was 0.72)
+
+
 uint8_t fb[W * H];
 uint8_t* zb = nullptr;
 float g_cx, g_cy, g_cz, g_cY = 1.f, g_sY = 0.f, g_t, g_vis = 40.f, g_pitch, g_yaw;
@@ -425,7 +429,7 @@ static void drawSeabed() {
     const Scene& sc = g_scene;
     const BiomeParams& b = biomeAt(sc.distance);
     const int ox = terrainOx(), oy = terrainOy();
-    const float fmax = fminf(112.f, g_vis * 1.6f);          // short of the grid's edge, where new cells are still being dreamt
+    const float fmax = fminf(112.f, g_vis * 1.45f);         // short of the grid's edge; past ~1.45 vis it's all water anyway
     const float clear = clampf(1.f - (sc.cloud - 0.5f) * 1.6f, 0.2f, 1.f) * (1.f - 0.6f * sc.rain);
     const float cs = b.caust * clampf(sc.dayLight * 1.3f, 0.f, 1.f) * clear * 3.2f;
     const float t = g_t;
@@ -507,7 +511,7 @@ static void drawSeabed() {
                 ybot = r0;
             }
             pY = sy; pSh = sh; pFog = fog; pWx = wx; pWy = wy; pMat = mat; pFw = fw0;
-            f += 0.07f + f * 0.04f;
+            f += 0.08f + f * 0.048f;                                  // further out, samples grow with the pixels they cover
         }
     }
 }
@@ -828,7 +832,7 @@ void renderFrameImpl(float x, float y, float z, float yaw, float pitch, float t)
     const Scene& sc = g_scene;
     const BiomeParams& b = biomeAt(sc.distance);
     g_yaw = yaw; g_t = t;
-    g_pitch = clampf(pitch, -0.72f, 0.72f);                          // the view tilts less than the hull (pixel art stays upright)
+    g_pitch = clampf(pitch, -VIEW_PITCH_MAX, VIEW_PITCH_MAX);        // the view follows the nose up to here (pixel art stays upright)
     // a slow swell: the hull rides it near the surface
     float swell = clampf(1.f - sc.depth / 20.f, 0.f, 1.f) * (0.15f + 0.25f * sc.waves);
     g_cx = x; g_cy = y; g_cz = z + sinf(t * 0.9f) * swell * 0.4f;

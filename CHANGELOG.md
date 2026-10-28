@@ -28,3 +28,23 @@
 - Helm: tuning constants at the top of helm.cpp (and SPEED_TAU in main.cpp); a little quicker on pitch and yaw.
 - Pinned to MantisPlanet's working libraries: M5Unified 0.2.26, M5GFX 0.2.33. LCD clock 40 MHz (MP_LCD_MHZ).
 - tools/host/listen.sh: a 70 s listening tour -> snaps/tour.mp3.
+
+## 1.0.4
+- Every sound is tagged; tools/host/stems.sh renders each one soloed (33 stems, with an index) -> snaps/stems.
+  The solo gate exists only in the desktop build (on the device it's a constant 1).
+- Levels from the audit: seal trills and dolphin whistles x2.2, the sea's breath x1.75, the choir 0.44x.
+- Tools: teleporting along the journey now catches the director up first (it was re-picking the forced biome),
+  so snapshots, the listening tour and the stems are in the places they say.
+
+## 1.1.0
+- Helm: tilt is read as an angle (atan2 of gravity), so climbing works however you hold it. Raw accel.y is
+  symmetric near upright, so tipping back read as another dive. Tilt deadzone and full stick are in degrees;
+  invert switches; pitch up to 77 degrees, and the view now follows the nose to 60 (VIEW_PITCH_MAX).
+- Freezes: rock and coral shaders and the temple, wall and column loops only touch on-screen pixels; a near
+  plane fades things out between 1.6 and 0.9 m from the lens (kelp and grass excepted). The worst frame in the
+  stress test went from 8x the baseline to 2x. The seabed takes fewer far samples and stops where it's all water.
+- Footprint: per-object and per-frame code compiled for size; our code is ~24% smaller.
+- Sound, a material pass: rain is a muffled hiss (no drops); bubbles are big low glugs (~180-620 Hz, were 1-5 kHz)
+  with a soft onset; shrimp are a quieter sizzle; every ping fades in (no clicks); sonar, scanner, UI, chimes,
+  creaks, bump, seals, dolphins and narwhals an octave or so lower. Level and pitch per sound at the top of
+  ocean.cpp.

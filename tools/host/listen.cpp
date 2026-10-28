@@ -3,6 +3,7 @@
 using namespace mantis;
 static void place(uint8_t biome, float tod, float alt, float yaw, float D0) {
   distanceTravelled = D0;
+  journeyUpdate(D0, 0.f, 0.f, 10.f);               // catch the journey up first: crossing biomes re-picks the ones ahead
   journeyForce(D0, biome); journeyForce(biomeEnd(D0) + 1.f, biome); journeyForce(biomeStart(D0) - 1.f, biome);
   setTimeOfDay(tod, millis() / 1000.f, D0);
   subX = 1000.f + D0 * 0.37f; subY = -300.f + D0 * 0.11f;
